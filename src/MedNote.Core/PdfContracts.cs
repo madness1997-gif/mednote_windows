@@ -6,8 +6,8 @@ public readonly record struct PdfPageMetrics(double Width, double Height)
 
     /// <summary>
     /// A display-safe width/height ratio. A small number of real-world PDFs
-    /// expose broken crop/media boxes through Windows.Data.Pdf (for example a
-    /// normal article page reported as an extremely narrow strip). Rendering
+    /// expose broken crop/media boxes through native PDF engines (for example
+    /// a normal article page reported as an extremely narrow strip). Rendering
     /// those raw metrics makes the page unusable, so fall back to A-series
     /// paper for non-finite or implausible values.
     /// </summary>

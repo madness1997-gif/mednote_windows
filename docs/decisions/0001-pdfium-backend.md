@@ -29,12 +29,12 @@ The adapter will:
 5. bound malformed outline traversal by both a visited-handle set and a maximum
    node count;
 6. close native handles deterministically in reverse ownership order;
-7. keep `WindowsPdfEngine` available as a temporary fallback until the PDFium
-   corpus passes on CI and a real Windows machine.
+7. remove `WindowsPdfEngine` once the packaged PDFium smoke test opens and
+   renders the fixture on Windows CI.
 
 Package versions remain centrally pinned in `Directory.Packages.props`. The
-exact PDFiumCore version will be added with the adapter so restore and native
-asset publication are tested in the same commit.
+adapter initially ships with PDFiumCore `153.0.7999`; restore and native asset
+publication are tested in the same commit.
 
 ## Why this option
 

@@ -28,7 +28,7 @@ public sealed partial class MainWindow : Window
     public MainWindow(string? startupDocumentPath = null)
     {
         _startupDocumentPath = startupDocumentPath;
-        ViewModel = new ReaderViewModel(new WindowsPdfEngine(), new JsonReaderLibraryStore());
+        ViewModel = new ReaderViewModel(new PdfiumPdfEngine(), new JsonReaderLibraryStore());
         _updatingControls = true;
         InitializeComponent();
         _updatingControls = false;

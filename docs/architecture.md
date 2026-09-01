@@ -35,14 +35,18 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 ### MedNote.Windows.App
 
 - Owns WinUI views and user interaction.
-- Implements `IPdfEngine` with `Windows.Data.Pdf` for milestone 1.
+- Implements `IPdfEngine`, `IPdfOutlineProvider`, and `IPdfTextProvider` with
+  PDFiumCore/PDFium.
 - Virtualizes page controls with `ListView`/`ItemsStackPanel`.
 - Converts native rendered PNG streams into `BitmapImage` only for realized pages.
 - Persists state atomically under `%LOCALAPPDATA%\MedNote Reader`.
 
 ## Renderer strategy
 
-`Windows.Data.Pdf` gives the first milestone a small, dependency-light renderer and validates the native shell. It does not expose all PDF features needed by MedNote, especially outline extraction, text geometry, search, and annotation authoring. The next renderer is therefore PDFium behind the same interface; UI and domain code must not import PDFium types.
+PDFium is the production renderer behind the core interfaces. It supplies page
+images, outlines, destinations, text, and text rectangles without exposing
+native types to UI or domain code. The milestone `Windows.Data.Pdf` adapter was
+removed after the packaged PDFium render smoke test passed.
 
 M2 adds optional capabilities instead of enlarging the base rendering contract:
 
@@ -52,7 +56,7 @@ M2 adds optional capabilities instead of enlarging the base rendering contract:
 - UI code detects capabilities on the active session and remains usable when a
   renderer only supports page images.
 
-The PDFium adapter must route every native call through one owned dispatcher.
+The PDFium adapter routes every native call through one owned dispatcher.
 Page rendering may be requested concurrently by the UI, but PDFium handle access
 is serialized before reaching the native library. No PDFium handle crosses the
 adapter boundary. See `docs/decisions/0001-pdfium-backend.md`.

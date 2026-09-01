@@ -5,7 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>MedNote.Windows.App</RootNamespace>
     <AssemblyName>MedNote.Reader</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>MedNote Reader Native</Product>
     <Authors>MedNote</Authors>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -20,9 +20,17 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="PDFiumCore" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MedNote.Core\MedNote.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None
+      Include="..\..\THIRD-PARTY-NOTICES.md"
+      Link="THIRD-PARTY-NOTICES.md"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

@@ -363,19 +363,34 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
                 // State is also persisted after every interaction; shutdown stays unblocked.
             }
 
-            foreach (var page in Pages)
+            try
             {
-                page.Dispose();
-            }
+                foreach (var page in Pages)
+                {
+                    page.Dispose();
+                }
 
-            _bitmapBudget.Clear();
-            if (_session is not null)
+                _bitmapBudget.Clear();
+                if (_session is not null)
+                {
+                    await _session.DisposeAsync();
+                    _session = null;
+                }
+            }
+            finally
             {
-                await _session.DisposeAsync();
-                _session = null;
+                try
+                {
+                    await _persistence.DisposeAsync();
+                }
+                finally
+                {
+                    if (_pdfEngine is IAsyncDisposable disposableEngine)
+                    {
+                        await disposableEngine.DisposeAsync();
+                    }
+                }
             }
-
-            await _persistence.DisposeAsync();
         }
         finally
         {

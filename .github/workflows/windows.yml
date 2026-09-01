@@ -103,9 +103,21 @@ jobs:
           $exe = Get-ChildItem artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -ErrorAction Stop
           if (-not $exe) { throw "MedNote.Reader.exe was not published" }
 
+          $pdfium = Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File -Filter pdfium.dll
+          if (-not $pdfium) { throw "PDFium native runtime was not published" }
+
           $webReferences = Get-ChildItem src -Recurse -File -Include *.cs,*.xaml,*.csproj |
             Select-String -Pattern 'WebView2|Microsoft\.Web\.WebView2'
           if ($webReferences) { throw "WebView2 reference found in native source: $($webReferences.Path -join ', ')" }
+
+          $milestoneRenderer = Get-ChildItem src -Recurse -File -Include *.cs,*.csproj |
+            Select-String -Pattern 'Windows\.Data\.Pdf|WindowsPdfEngine'
+          if ($milestoneRenderer) {
+            throw "Milestone PDF renderer still exists: $($milestoneRenderer.Path -join ', ')"
+          }
+
+          $notice = Get-ChildItem artifacts/MedNote-Reader-Windows/THIRD-PARTY-NOTICES.md -ErrorAction Stop
+          if (-not $notice) { throw "Third-party notices were not published" }
 
           # Windows App SDK publishes this optional loader even when WebView2 is unused.
           # Remove it so the distributed reader contains no dormant web runtime bridge.
