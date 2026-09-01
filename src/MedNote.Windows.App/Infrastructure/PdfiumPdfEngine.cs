@@ -480,8 +480,8 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                     return Array.Empty<PdfPageRect>();
                 }
 
-                var firstCharacter = fpdf_text.FPDFTextGetCharIndexFromTextIndex(textPage, startIndex);
-                var lastCharacter = fpdf_text.FPDFTextGetCharIndexFromTextIndex(
+                var firstCharacter = fpdf_searchex.FPDFTextGetCharIndexFromTextIndex(textPage, startIndex);
+                var lastCharacter = fpdf_searchex.FPDFTextGetCharIndexFromTextIndex(
                     textPage,
                     checked(startIndex + length - 1));
                 if (firstCharacter < 0 || lastCharacter < firstCharacter)
