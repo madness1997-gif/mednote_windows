@@ -11,7 +11,18 @@ internal static class RenderProbe
 {
     private const string EnvironmentVariableName = "MEDNOTE_RENDER_PROBE";
     private const string TargetPageEnvironmentVariableName = "MEDNOTE_RENDER_TARGET_PAGE";
-    private static readonly long StartedAt = Stopwatch.GetTimestamp();
+    private static readonly long StartedAt;
+
+    static RenderProbe()
+    {
+        StartedAt = Stopwatch.GetTimestamp();
+    }
+
+    public static void Initialize()
+    {
+        // Calling this from App.OnLaunched gives the CI probe an end-to-end
+        // process/open/navigation/render clock instead of a first-use clock.
+    }
 
     public static int? TargetPage(int pageCount)
     {

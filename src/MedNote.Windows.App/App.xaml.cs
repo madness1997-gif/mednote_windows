@@ -1,3 +1,4 @@
+using MedNote.Windows.App.Infrastructure;
 using Microsoft.UI.Xaml;
 
 namespace MedNote.Windows.App;
@@ -25,6 +26,7 @@ public partial class App : Application
     {
         try
         {
+            RenderProbe.Initialize();
             var startupDocumentPath = Environment.GetCommandLineArgs()
                 .Skip(1)
                 .Select(argument => argument.Trim().Trim('"'))
