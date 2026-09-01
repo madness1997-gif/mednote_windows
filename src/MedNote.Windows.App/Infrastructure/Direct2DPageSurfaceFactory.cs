@@ -1,8 +1,8 @@
 using MedNote.Core;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.UI.Xaml;
+using Microsoft.UI;
 using Windows.Graphics.DirectX;
-using Windows.UI;
 
 namespace MedNote.Windows.App.Infrastructure;
 
