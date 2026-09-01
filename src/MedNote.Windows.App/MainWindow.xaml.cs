@@ -21,11 +21,13 @@ namespace MedNote.Windows.App;
 public sealed partial class MainWindow : Window
 {
     private readonly ReaderViewportController _viewport;
+    private readonly string? _startupDocumentPath;
     private bool _updatingControls;
     private bool _initialized;
 
-    public MainWindow()
+    public MainWindow(string? startupDocumentPath = null)
     {
+        _startupDocumentPath = startupDocumentPath;
         ViewModel = new ReaderViewModel(new WindowsPdfEngine(), new JsonReaderLibraryStore());
         _updatingControls = true;
         InitializeComponent();
@@ -53,6 +55,12 @@ public sealed partial class MainWindow : Window
         _initialized = true;
         _viewport.Initialize();
         await ViewModel.InitializeAsync();
+        if (!string.IsNullOrWhiteSpace(_startupDocumentPath) && File.Exists(_startupDocumentPath))
+        {
+            await OpenFileAsync(_startupDocumentPath);
+            return;
+        }
+
         ApplyViewModelState();
         await _viewport.RestoreSavedPositionAsync();
     }
@@ -200,7 +208,21 @@ public sealed partial class MainWindow : Window
 
     private void OnPagesTabChecked(object sender, RoutedEventArgs e) => SelectSidebarTab(SidebarPagesList);
 
-    private void OnBookmarksTabChecked(object sender, RoutedEventArgs e) => SelectSidebarTab(BookmarksList);
+    private void OnSearchTabChecked(object sender, RoutedEventArgs e) => SelectSidebarTab(SearchPanel);
+
+    private void OnBookmarksTabChecked(object sender, RoutedEventArgs e) => SelectSidebarTab(BookmarksPanel);
+
+    private void OnHideRailClicked(object sender, RoutedEventArgs e)
+    {
+        SidebarPane.Visibility = Visibility.Collapsed;
+        SidebarColumn.Width = new GridLength(0);
+    }
+
+    private void OnShowRailClicked(object sender, RoutedEventArgs e)
+    {
+        SidebarColumn.Width = new GridLength(264);
+        SidebarPane.Visibility = Visibility.Visible;
+    }
 
     private void SelectSidebarTab(UIElement selected)
     {
@@ -212,10 +234,12 @@ public sealed partial class MainWindow : Window
         _updatingControls = true;
         OutlinePanel.Visibility = selected == OutlinePanel ? Visibility.Visible : Visibility.Collapsed;
         SidebarPagesList.Visibility = selected == SidebarPagesList ? Visibility.Visible : Visibility.Collapsed;
-        BookmarksList.Visibility = selected == BookmarksList ? Visibility.Visible : Visibility.Collapsed;
+        SearchPanel.Visibility = selected == SearchPanel ? Visibility.Visible : Visibility.Collapsed;
+        BookmarksPanel.Visibility = selected == BookmarksPanel ? Visibility.Visible : Visibility.Collapsed;
         OutlineTabButton.IsChecked = selected == OutlinePanel;
         PagesTabButton.IsChecked = selected == SidebarPagesList;
-        BookmarksTabButton.IsChecked = selected == BookmarksList;
+        SearchTabButton.IsChecked = selected == SearchPanel;
+        BookmarksTabButton.IsChecked = selected == BookmarksPanel;
         _updatingControls = false;
     }
 
@@ -350,7 +374,8 @@ public sealed partial class MainWindow : Window
     private void UpdateBookmarkButton()
     {
         var marked = ViewModel.Bookmarks.Contains(ViewModel.CurrentPage);
-        BookmarkButton.Content = marked ? "Bỏ dấu" : "Dấu";
+        BookmarkIcon.Glyph = marked ? "\uE735" : "\uE734";
+        ToolTipService.SetToolTip(BookmarkButton, marked ? "Bỏ đánh dấu trang" : "Đánh dấu trang");
     }
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)

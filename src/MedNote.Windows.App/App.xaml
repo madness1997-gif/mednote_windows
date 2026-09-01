@@ -9,11 +9,17 @@
             </ResourceDictionary.MergedDictionaries>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F5F8" />
-                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#FBFCFE" />
-                    <SolidColorBrush x:Key="ReaderBackgroundBrush" Color="#E8EBF0" />
-                    <SolidColorBrush x:Key="SubtleBorderBrush" Color="#D8DDE5" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#626B78" />
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#FFF3F6F7" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#FFFBFCFC" />
+                    <SolidColorBrush x:Key="ReaderBackgroundBrush" Color="#FFF4F7F8" />
+                    <SolidColorBrush x:Key="SubtleBorderBrush" Color="#FFD8E1E5" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF6B7B88" />
+                    <SolidColorBrush x:Key="MedNoteTealBrush" Color="#FF0E6B70" />
+                    <SolidColorBrush x:Key="MedNoteNavyBrush" Color="#FF18324A" />
+                    <SolidColorBrush x:Key="MedNoteInkBrush" Color="#FF1C2933" />
+                    <SolidColorBrush x:Key="SelectedBrush" Color="#FFE2F2F1" />
+                    <SolidColorBrush x:Key="ToolbarTextBrush" Color="#FF435760" />
+                    <SolidColorBrush x:Key="ControlSurfaceBrush" Color="#FFFFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#15181C" />
@@ -21,20 +27,47 @@
                     <SolidColorBrush x:Key="ReaderBackgroundBrush" Color="#101215" />
                     <SolidColorBrush x:Key="SubtleBorderBrush" Color="#343A43" />
                     <SolidColorBrush x:Key="MutedTextBrush" Color="#AAB2BE" />
+                    <SolidColorBrush x:Key="MedNoteTealBrush" Color="#FF76CED0" />
+                    <SolidColorBrush x:Key="MedNoteNavyBrush" Color="#FFE4F1F3" />
+                    <SolidColorBrush x:Key="MedNoteInkBrush" Color="#FFF1F5F6" />
+                    <SolidColorBrush x:Key="SelectedBrush" Color="#FF1C4D50" />
+                    <SolidColorBrush x:Key="ToolbarTextBrush" Color="#FFD6E5E8" />
+                    <SolidColorBrush x:Key="ControlSurfaceBrush" Color="#FF242A30" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-                <Setter Property="MinWidth" Value="40" />
-                <Setter Property="Height" Value="34" />
-                <Setter Property="Padding" Value="10,4" />
-                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="MinWidth" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="7,0" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{ThemeResource ToolbarTextBrush}" />
+                <Setter Property="FontSize" Value="11" />
             </Style>
             <Style x:Key="ToolbarToggleStyle" TargetType="ToggleButton">
-                <Setter Property="MinWidth" Value="40" />
-                <Setter Property="Height" Value="34" />
-                <Setter Property="Padding" Value="10,4" />
-                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="MinWidth" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="7,0" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{ThemeResource ToolbarTextBrush}" />
+                <Setter Property="FontSize" Value="11" />
             </Style>
+            <Style x:Key="RailTabStyle" TargetType="ToggleButton">
+                <Setter Property="Width" Value="31" />
+                <Setter Property="Height" Value="31" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+            </Style>
+            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#FFE2F2F1" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#FFD7ECEB" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FF0E6B70" />
+            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -41,12 +41,28 @@ jobs:
           -c Release -r win-x64 --self-contained true -p:Platform=x64
           -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false
           -o artifacts/MedNote-Reader-Windows
-      - name: Smoke-test packaged app startup
+      - name: Smoke-test packaged app startup and PDF rendering
         shell: pwsh
         run: |
           $startedAt = Get-Date
-          $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -PassThru
-          Start-Sleep -Seconds 10
+          $smokePdf = Join-Path $env:RUNNER_TEMP "mednote-render-smoke.pdf"
+          $renderProbe = Join-Path $env:RUNNER_TEMP "mednote-render-ready.txt"
+          $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
+          [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
+          $env:MEDNOTE_RENDER_PROBE = $renderProbe
+          $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe `
+            -ArgumentList "`"$smokePdf`"" -PassThru
+
+          $rendered = $false
+          foreach ($attempt in 1..30) {
+            Start-Sleep -Seconds 1
+            if ($process.HasExited) { break }
+            if (Test-Path $renderProbe) {
+              $rendered = $true
+              break
+            }
+          }
+
           if ($process.HasExited) {
             $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
             if (Test-Path $startupLog) {
@@ -62,6 +78,19 @@ jobs:
 
             throw "MedNote.Reader.exe exited during startup with code $($process.ExitCode)"
           }
+
+          if (-not $rendered) {
+            Stop-Process -Id $process.Id -Force
+            throw "MedNote opened but did not render the smoke-test PDF within 30 seconds"
+          }
+
+          $probe = Get-Content $renderProbe -Raw
+          Write-Host "PDF render probe: $probe"
+          if ($probe -notmatch '^page=1;width=\d+;height=\d+;bytes=\d+$') {
+            Stop-Process -Id $process.Id -Force
+            throw "Invalid PDF render probe: $probe"
+          }
+
           Stop-Process -Id $process.Id -Force
       - name: Verify native artifact boundary
         shell: pwsh

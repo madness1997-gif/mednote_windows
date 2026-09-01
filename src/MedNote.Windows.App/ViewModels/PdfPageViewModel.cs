@@ -41,6 +41,8 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
     public int Number { get; }
 
+    public string PageLabel => $"Trang {Number}";
+
     public BitmapImage? Bitmap
     {
         get => _bitmap;
@@ -175,6 +177,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
             Bitmap = bitmap;
             _renderedPixelWidth = rendered.PixelWidth;
+            SignalRenderProbe(rendered);
             _bitmapBudget.Report(
                 _cacheKey,
                 rendered.EstimatedBitmapBytes,
@@ -224,6 +227,32 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
     private static double RelativeDifference(uint left, uint right) =>
         Math.Abs((double)left - right) / Math.Max(1d, right);
+
+    private void SignalRenderProbe(RenderedPdfPage rendered)
+    {
+        var probePath = Environment.GetEnvironmentVariable("MEDNOTE_RENDER_PROBE");
+        if (string.IsNullOrWhiteSpace(probePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = System.IO.Path.GetDirectoryName(probePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(
+                probePath,
+                $"page={Number};width={rendered.PixelWidth};height={rendered.PixelHeight};bytes={rendered.PngBytes.Length}");
+        }
+        catch
+        {
+            // A CI-only render probe must never affect the Reader.
+        }
+    }
 
     private (uint Width, uint Height) DesiredPixelSize()
     {

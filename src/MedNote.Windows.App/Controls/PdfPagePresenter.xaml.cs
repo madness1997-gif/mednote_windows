@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,6 +9,8 @@ public sealed partial class PdfPagePresenter : UserControl
 {
     private CancellationTokenSource? _loadCancellation;
     private PdfPageViewModel? _boundPage;
+    private bool _rendering;
+    private bool _renderRequested;
 
     public PdfPagePresenter()
     {
@@ -15,14 +18,28 @@ public sealed partial class PdfPagePresenter : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e) => await RenderAsync();
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_boundPage is not null)
+        {
+            _boundPage.PropertyChanged -= OnPagePropertyChanged;
+            _boundPage.PropertyChanged += OnPagePropertyChanged;
+        }
+
+        await RenderAsync();
+    }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _loadCancellation?.Cancel();
         _loadCancellation?.Dispose();
         _loadCancellation = null;
-        _boundPage?.Unpin();
+        _renderRequested = false;
+        if (_boundPage is not null)
+        {
+            _boundPage.PropertyChanged -= OnPagePropertyChanged;
+            _boundPage.Unpin();
+        }
     }
 
     private async void OnDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
@@ -30,8 +47,17 @@ public sealed partial class PdfPagePresenter : UserControl
         var nextPage = DataContext as PdfPageViewModel;
         if (!ReferenceEquals(_boundPage, nextPage))
         {
-            _boundPage?.Unpin();
+            if (_boundPage is not null)
+            {
+                _boundPage.PropertyChanged -= OnPagePropertyChanged;
+                _boundPage.Unpin();
+            }
+
             _boundPage = nextPage;
+            if (_boundPage is not null)
+            {
+                _boundPage.PropertyChanged += OnPagePropertyChanged;
+            }
         }
 
         if (IsLoaded)
@@ -40,10 +66,10 @@ public sealed partial class PdfPagePresenter : UserControl
         }
     }
 
-    private async void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    private async void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (IsLoaded && (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1d
-            || Math.Abs(e.NewSize.Height - e.PreviousSize.Height) > 1d))
+        if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
+            or nameof(PdfPageViewModel.DisplayHeight))
         {
             await RenderAsync();
         }
@@ -51,9 +77,12 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private async Task RenderAsync()
     {
-        _loadCancellation?.Cancel();
-        _loadCancellation?.Dispose();
-        _loadCancellation = new CancellationTokenSource();
+        if (_rendering)
+        {
+            _renderRequested = true;
+            return;
+        }
+
         var page = DataContext as PdfPageViewModel;
         if (page is null)
         {
@@ -62,13 +91,28 @@ public sealed partial class PdfPagePresenter : UserControl
 
         if (!ReferenceEquals(_boundPage, page))
         {
-            _boundPage?.Unpin();
+            if (_boundPage is not null)
+            {
+                _boundPage.PropertyChanged -= OnPagePropertyChanged;
+                _boundPage.Unpin();
+            }
+
             _boundPage = page;
+            _boundPage.PropertyChanged += OnPagePropertyChanged;
         }
 
+        _rendering = true;
         try
         {
-            await page.PinAndRenderAsync(_loadCancellation.Token);
+            do
+            {
+                _renderRequested = false;
+                _loadCancellation?.Cancel();
+                _loadCancellation?.Dispose();
+                _loadCancellation = new CancellationTokenSource();
+                await page.PinAndRenderAsync(_loadCancellation.Token);
+            }
+            while (_renderRequested && IsLoaded && ReferenceEquals(page, DataContext));
         }
         catch (OperationCanceledException)
         {
@@ -77,6 +121,16 @@ public sealed partial class PdfPagePresenter : UserControl
         catch (ObjectDisposedException)
         {
             // Window shutdown can dispose the session before the final unload.
+        }
+        finally
+        {
+            _rendering = false;
+        }
+
+        if (_renderRequested && IsLoaded)
+        {
+            _renderRequested = false;
+            await RenderAsync();
         }
     }
 }

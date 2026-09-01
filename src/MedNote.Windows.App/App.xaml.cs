@@ -25,7 +25,10 @@ public partial class App : Application
     {
         try
         {
-            _window = new MainWindow();
+            var startupDocumentPath = string.IsNullOrWhiteSpace(args.Arguments)
+                ? null
+                : args.Arguments.Trim().Trim('"');
+            _window = new MainWindow(startupDocumentPath);
             _window.Activate();
         }
         catch (Exception exception)

@@ -9,158 +9,173 @@
         x:Name="Root"
         Background="{ThemeResource AppBackgroundBrush}"
         KeyDown="OnRootKeyDown"
-        Loaded="OnRootLoaded">
+        Loaded="OnRootLoaded"
+        RequestedTheme="Light">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="56" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Border
             Grid.Row="0"
-            Padding="10,8"
-            Background="{ThemeResource PaneBackgroundBrush}"
+            Padding="18,0"
+            Background="White"
             BorderBrush="{ThemeResource SubtleBorderBrush}"
             BorderThickness="0,0,0,1">
             <Grid ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" MinWidth="160" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Button
-                    Grid.Column="0"
-                    Click="OnOpenClicked"
-                    Content="Mở"
-                    Style="{StaticResource ToolbarButtonStyle}"
-                    ToolTipService.ToolTip="Mở PDF (Ctrl+O)" />
-
-                <StackPanel
-                    Grid.Column="1"
-                    MinWidth="0"
-                    VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" MinWidth="0" Orientation="Horizontal" Spacing="10">
+                    <Button
+                        Width="36"
+                        Height="36"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnShowRailClicked"
+                        ToolTipService.ToolTip="Mở bảng điều hướng">
+                        <FontIcon FontSize="19" Glyph="&#xE700;" />
+                    </Button>
+                    <Border
+                        Width="30"
+                        Height="30"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource MedNoteTealBrush}"
+                        CornerRadius="9">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="15"
+                            FontWeight="Bold"
+                            Foreground="White"
+                            Text="M" />
+                    </Border>
                     <TextBlock
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Text="{x:Bind ViewModel.DocumentName, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis" />
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{ThemeResource MutedTextBrush}"
-                        Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis" />
+                        VerticalAlignment="Center"
+                        FontSize="21"
+                        FontWeight="Bold"
+                        Foreground="{ThemeResource MedNoteTealBrush}"
+                        Text="MedNote" />
+                    <Border
+                        Width="1"
+                        Height="26"
+                        Margin="4,0"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource SubtleBorderBrush}" />
+                    <Button
+                        MaxWidth="430"
+                        MinWidth="120"
+                        Height="36"
+                        Padding="9,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnOpenClicked"
+                        CornerRadius="8"
+                        HorizontalContentAlignment="Left"
+                        ToolTipService.ToolTip="Chọn tài liệu">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock
+                                MaxWidth="380"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource MedNoteNavyBrush}"
+                                Text="{x:Bind ViewModel.DocumentName, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis" />
+                            <FontIcon FontSize="12" Glyph="&#xE70D;" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
-                <StackPanel
-                    Grid.Column="2"
-                    Orientation="Horizontal"
-                    Spacing="4">
-                    <Button
-                        Click="OnPreviousPageClicked"
-                        Content="‹"
-                        FontSize="20"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTipService.ToolTip="Trang trước" />
-                    <NumberBox
-                        x:Name="PageNumberBox"
-                        Width="82"
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                    <Border
                         Height="34"
-                        Minimum="1"
-                        SpinButtonPlacementMode="Hidden"
-                        ValueChanged="OnPageNumberChanged" />
-                    <TextBlock
-                        MinWidth="48"
                         VerticalAlignment="Center"
+                        Background="#FFF7F9FA"
+                        BorderBrush="#FFCBD9DC"
+                        BorderThickness="1"
+                        CornerRadius="9">
+                        <StackPanel Orientation="Horizontal">
+                            <Button
+                                Height="32"
+                                Padding="9,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Content="Cả hai"
+                                FontSize="10"
+                                FontWeight="SemiBold"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Note sẽ được bổ sung sau Reader" />
+                            <Border Width="1" Background="#FFDCE5E7" />
+                            <Button
+                                Height="32"
+                                Padding="9,0"
+                                Background="{ThemeResource SelectedBrush}"
+                                BorderThickness="0"
+                                FontSize="10"
+                                FontWeight="Bold"
+                                Foreground="{ThemeResource MedNoteTealBrush}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon FontSize="15" Glyph="&#xE736;" />
+                                    <TextBlock VerticalAlignment="Center" Text="Reader" />
+                                </StackPanel>
+                            </Button>
+                            <Border Width="1" Background="#FFDCE5E7" />
+                            <Button
+                                Height="32"
+                                Padding="9,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Content="Note"
+                                FontSize="10"
+                                FontWeight="SemiBold"
+                                IsEnabled="False"
+                                ToolTipService.ToolTip="Chưa có note" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Margin="5,0,3,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="7" Height="7" Fill="#FF4BA889" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="{ThemeResource MutedTextBrush}"
+                            Text="Đã lưu trên máy" />
+                    </StackPanel>
+                    <Button
+                        Height="34"
+                        Padding="10,0"
+                        Background="White"
+                        BorderBrush="#FFCBD9DC"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        FontSize="11"
+                        FontWeight="SemiBold"
                         Foreground="{ThemeResource MutedTextBrush}"
-                        Text="{x:Bind ViewModel.PageCount, Mode=OneWay, FallbackValue=0}" />
+                        IsEnabled="False"
+                        ToolTipService.ToolTip="Đồng bộ Drive sẽ được bổ sung sau">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontSize="15" Glyph="&#xE753;" />
+                            <TextBlock VerticalAlignment="Center" Text="Kết nối Drive" />
+                        </StackPanel>
+                    </Button>
                     <Button
-                        Click="OnNextPageClicked"
-                        Content="›"
-                        FontSize="20"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTipService.ToolTip="Trang sau" />
+                        Height="34"
+                        Padding="12,0"
+                        Background="{ThemeResource MedNoteTealBrush}"
+                        BorderThickness="0"
+                        Click="OnOpenClicked"
+                        CornerRadius="8"
+                        FontWeight="SemiBold"
+                        Foreground="White">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <FontIcon FontSize="16" Glyph="&#xE838;" />
+                            <TextBlock VerticalAlignment="Center" Text="Mở PDF" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
-
-                <StackPanel
-                    Grid.Column="3"
-                    Orientation="Horizontal"
-                    Spacing="4">
-                    <ToggleButton
-                        x:Name="FitPageButton"
-                        Checked="OnFitPageChecked"
-                        Content="Trang"
-                        Style="{StaticResource ToolbarToggleStyle}"
-                        ToolTipService.ToolTip="Vừa trang" />
-                    <ToggleButton
-                        x:Name="FitWidthButton"
-                        Checked="OnFitWidthChecked"
-                        Content="Rộng"
-                        Style="{StaticResource ToolbarToggleStyle}"
-                        ToolTipService.ToolTip="Vừa chiều rộng" />
-                </StackPanel>
-
-                <StackPanel
-                    Grid.Column="4"
-                    Orientation="Horizontal"
-                    Spacing="4">
-                    <Button
-                        Click="OnZoomOutClicked"
-                        Content="−"
-                        FontSize="18"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTipService.ToolTip="Thu nhỏ" />
-                    <TextBlock
-                        Width="54"
-                        VerticalAlignment="Center"
-                        Text="{x:Bind ViewModel.ZoomLabel, Mode=OneWay}"
-                        TextAlignment="Center" />
-                    <Button
-                        Click="OnZoomInClicked"
-                        Content="+"
-                        FontSize="18"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTipService.ToolTip="Phóng to" />
-                </StackPanel>
-
-                <StackPanel
-                    Grid.Column="5"
-                    Orientation="Horizontal"
-                    Spacing="4">
-                    <ToggleButton
-                        x:Name="SingleModeButton"
-                        Checked="OnSingleModeChecked"
-                        Content="Đơn"
-                        Style="{StaticResource ToolbarToggleStyle}"
-                        ToolTipService.ToolTip="Xem từng trang" />
-                    <ToggleButton
-                        x:Name="ContinuousModeButton"
-                        Checked="OnContinuousModeChecked"
-                        Content="Liên tục"
-                        Style="{StaticResource ToolbarToggleStyle}"
-                        ToolTipService.ToolTip="Cuộn liên tục" />
-                </StackPanel>
-
-                <ToggleButton
-                    x:Name="PanToolButton"
-                    Grid.Column="6"
-                    Checked="OnPanToolChecked"
-                    Content="Kéo"
-                    IsChecked="True"
-                    Style="{StaticResource ToolbarToggleStyle}"
-                    ToolTipService.ToolTip="Bàn tay — kéo trang" />
-
-                <Button
-                    x:Name="BookmarkButton"
-                    Grid.Column="7"
-                    Click="OnBookmarkClicked"
-                    Content="Dấu"
-                    Style="{StaticResource ToolbarButtonStyle}"
-                    ToolTipService.ToolTip="Thêm hoặc bỏ dấu trang" />
             </Grid>
         </Border>
 
@@ -171,60 +186,109 @@
             </Grid.ColumnDefinitions>
 
             <Border
+                x:Name="SidebarPane"
                 Grid.Column="0"
-                Background="{ThemeResource PaneBackgroundBrush}"
+                Padding="8"
+                Background="#FFFBFCFC"
                 BorderBrush="{ThemeResource SubtleBorderBrush}"
                 BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="39" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid
                         Grid.Row="0"
-                        Padding="8"
-                        ColumnSpacing="4">
+                        Padding="2,1,2,6"
+                        BorderBrush="{ThemeResource SubtleBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        ColumnSpacing="2">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <ToggleButton
-                            x:Name="OutlineTabButton"
-                            Grid.Column="0"
-                            Checked="OnOutlineTabChecked"
-                            Content="Mục lục"
-                            IsChecked="True" />
-                        <ToggleButton
                             x:Name="PagesTabButton"
-                            Grid.Column="1"
+                            Grid.Column="0"
+                            HorizontalAlignment="Center"
                             Checked="OnPagesTabChecked"
-                            Content="Trang" />
+                            Style="{StaticResource RailTabStyle}"
+                            ToolTipService.ToolTip="Hình thu nhỏ các trang">
+                            <FontIcon FontSize="17" Glyph="&#xE8A5;" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="OutlineTabButton"
+                            Grid.Column="1"
+                            HorizontalAlignment="Center"
+                            Checked="OnOutlineTabChecked"
+                            IsChecked="True"
+                            Style="{StaticResource RailTabStyle}"
+                            ToolTipService.ToolTip="Mục lục PDF">
+                            <FontIcon FontSize="17" Glyph="&#xE8FD;" />
+                        </ToggleButton>
+                        <ToggleButton
+                            x:Name="SearchTabButton"
+                            Grid.Column="2"
+                            HorizontalAlignment="Center"
+                            Checked="OnSearchTabChecked"
+                            Style="{StaticResource RailTabStyle}"
+                            ToolTipService.ToolTip="Tìm trong tài liệu">
+                            <FontIcon FontSize="17" Glyph="&#xE721;" />
+                        </ToggleButton>
                         <ToggleButton
                             x:Name="BookmarksTabButton"
-                            Grid.Column="2"
+                            Grid.Column="3"
+                            HorizontalAlignment="Center"
                             Checked="OnBookmarksTabChecked"
-                            Content="Dấu" />
+                            Style="{StaticResource RailTabStyle}"
+                            ToolTipService.ToolTip="Đánh dấu">
+                            <FontIcon FontSize="17" Glyph="&#xE734;" />
+                        </ToggleButton>
+                        <Button
+                            Grid.Column="4"
+                            Width="31"
+                            Height="31"
+                            HorizontalAlignment="Center"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnHideRailClicked"
+                            CornerRadius="7"
+                            Foreground="{ThemeResource MutedTextBrush}"
+                            ToolTipService.ToolTip="Thu gọn bảng điều hướng">
+                            <FontIcon FontSize="17" Glyph="&#xE76B;" />
+                        </Button>
                     </Grid>
 
                     <Grid Grid.Row="1">
-                        <StackPanel
-                            x:Name="OutlinePanel"
-                            Padding="20,16"
-                            Spacing="8">
+                        <StackPanel x:Name="OutlinePanel" Padding="9,10" Spacing="9">
                             <TextBlock
-                                FontSize="15"
+                                Foreground="{ThemeResource MedNoteNavyBrush}"
+                                FontSize="12"
                                 FontWeight="SemiBold"
                                 Text="Mục lục" />
-                            <TextBlock
-                                Foreground="{ThemeResource MutedTextBrush}"
-                                Text="Backend PDF native hiện chưa đọc outline. Phần này đã được tách interface để nối PDFium ở mốc kế tiếp."
-                                TextWrapping="Wrap" />
+                            <StackPanel MinHeight="160" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontSize="25"
+                                    Foreground="#FF8A999F"
+                                    Glyph="&#xE8FD;" />
+                                <TextBlock
+                                    MaxWidth="190"
+                                    Foreground="#FF8A999F"
+                                    FontSize="11"
+                                    Text="PDF này không có mục lục nhúng hoặc mục lục chưa được đọc."
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
 
                         <ListView
                             x:Name="SidebarPagesList"
-                            Margin="6"
+                            Margin="2,5"
                             IsItemClickEnabled="True"
                             ItemClick="OnSidebarPageClicked"
                             ItemsSource="{x:Bind ViewModel.Pages, Mode=OneWay}"
@@ -232,125 +296,359 @@
                             Visibility="Collapsed">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="vm:PdfPageViewModel">
-                                    <TextBlock
-                                        Padding="12,8"
-                                        Text="{x:Bind Number}" />
+                                    <Grid Padding="7" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="54" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            Width="50"
+                                            Height="68"
+                                            Background="White"
+                                            BorderBrush="#FFD8DCDE"
+                                            BorderThickness="1"
+                                            CornerRadius="2">
+                                            <Image Source="{x:Bind Bitmap, Mode=OneWay}" Stretch="Uniform" />
+                                        </Border>
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{ThemeResource MutedTextBrush}"
+                                            Text="{x:Bind PageLabel}" />
+                                    </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <ListView
-                            x:Name="BookmarksList"
-                            Margin="6"
-                            IsItemClickEnabled="True"
-                            ItemClick="OnBookmarkItemClicked"
-                            ItemsSource="{x:Bind ViewModel.Bookmarks, Mode=OneWay}"
-                            SelectionMode="None"
-                            Visibility="Collapsed">
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel
-                                        Padding="12,8"
-                                        Orientation="Horizontal"
-                                        Spacing="8">
-                                        <FontIcon FontSize="13" Glyph="&#xE734;" />
-                                        <TextBlock Text="{Binding}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
+                        <StackPanel x:Name="SearchPanel" Padding="9,12" Spacing="9" Visibility="Collapsed">
+                            <TextBlock
+                                Foreground="{ThemeResource MedNoteNavyBrush}"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="Tìm trong tài liệu" />
+                            <Border
+                                Height="36"
+                                Padding="8,0"
+                                Background="White"
+                                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <Grid ColumnSpacing="5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon
+                                        VerticalAlignment="Center"
+                                        FontSize="15"
+                                        Foreground="{ThemeResource MutedTextBrush}"
+                                        Glyph="&#xE721;" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="11"
+                                        IsEnabled="False"
+                                        PlaceholderText="Nhập từ cần tìm…" />
+                                </Grid>
+                            </Border>
+                            <TextBlock
+                                FontSize="10"
+                                Foreground="{ThemeResource MutedTextBrush}"
+                                Text="Tìm kiếm văn bản sẽ hoạt động khi backend PDFium được nối."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="BookmarksPanel" Visibility="Collapsed">
+                            <TextBlock
+                                Margin="11,12,11,5"
+                                Foreground="{ThemeResource MedNoteNavyBrush}"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="Đánh dấu trang" />
+                            <ListView
+                                x:Name="BookmarksList"
+                                IsItemClickEnabled="True"
+                                ItemClick="OnBookmarkItemClicked"
+                                ItemsSource="{x:Bind ViewModel.Bookmarks, Mode=OneWay}"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Padding="10,8" Orientation="Horizontal" Spacing="8">
+                                            <FontIcon FontSize="13" Foreground="{ThemeResource MedNoteTealBrush}" Glyph="&#xE735;" />
+                                            <TextBlock Text="{Binding}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </Border>
 
-            <Grid
-                x:Name="ReaderSurface"
-                Grid.Column="1"
-                AllowDrop="True"
-                Background="{ThemeResource ReaderBackgroundBrush}"
-                DragOver="OnReaderDragOver"
-                Drop="OnReaderDrop">
-                <Grid
-                    x:Name="EmptyState"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                    <StackPanel
-                        MaxWidth="420"
-                        HorizontalAlignment="Center"
-                        Spacing="10">
-                        <FontIcon
-                            HorizontalAlignment="Center"
-                            FontSize="46"
-                            Foreground="{ThemeResource MutedTextBrush}"
-                            Glyph="&#xEA90;" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="21"
-                            FontWeight="SemiBold"
-                            Text="MedNote Reader Native" />
-                        <TextBlock
-                            Foreground="{ThemeResource MutedTextBrush}"
-                            Text="Kéo thả PDF vào đây hoặc bấm Mở. Không dùng Chromium hay WebView."
-                            TextAlignment="Center"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Grid>
-
-                <ListView
-                    x:Name="ContinuousPagesList"
-                    Padding="26,22"
-                    HorizontalContentAlignment="Stretch"
-                    ItemsSource="{x:Bind ViewModel.Pages, Mode=OneWay}"
-                    SelectionMode="None"
-                    Visibility="Collapsed">
-                    <ListView.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <ItemsStackPanel
-                                AreStickyGroupHeadersEnabled="False"
-                                CacheLength="1.5"
-                                Orientation="Vertical" />
-                        </ItemsPanelTemplate>
-                    </ListView.ItemsPanel>
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="IsTabStop" Value="False" />
-                            <Setter Property="Margin" Value="0,0,0,22" />
-                            <Setter Property="Padding" Value="0" />
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="vm:PdfPageViewModel">
-                            <controls:PdfPagePresenter />
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
-
-                <ScrollViewer
-                    x:Name="SinglePageScrollViewer"
-                    HorizontalScrollBarVisibility="Auto"
-                    HorizontalScrollMode="Enabled"
-                    VerticalScrollBarVisibility="Auto"
-                    VerticalScrollMode="Enabled"
-                    Visibility="Collapsed"
-                    ZoomMode="Disabled">
-                    <Grid Padding="18">
-                        <controls:PdfPagePresenter
-                            DataContext="{x:Bind ViewModel.CurrentPageItem, Mode=OneWay}" />
-                    </Grid>
-                </ScrollViewer>
-
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="86" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
                 <Border
-                    x:Name="BusyOverlay"
-                    Background="#55000000"
-                    Visibility="Collapsed">
-                    <ProgressRing
-                        Width="48"
-                        Height="48"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                    Grid.Row="0"
+                    Padding="10,4"
+                    Background="#FFFDFEFE"
+                    BorderBrush="{ThemeResource SubtleBorderBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="39" />
+                            <RowDefinition Height="1" />
+                            <RowDefinition Height="39" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" ColumnSpacing="5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                MaxWidth="210"
+                                Margin="3,0,5,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FF53646E"
+                                Text="{x:Bind ViewModel.DocumentName, Mode=OneWay}"
+                                TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="1">
+                                <Button Style="{StaticResource ToolbarButtonStyle}" IsEnabled="False" ToolTipService.ToolTip="Xuất PDF">
+                                    <FontIcon FontSize="16" Glyph="&#xE896;" />
+                                </Button>
+                                <Button Style="{StaticResource ToolbarButtonStyle}" IsEnabled="False" ToolTipService.ToolTip="In">
+                                    <FontIcon FontSize="16" Glyph="&#xE749;" />
+                                </Button>
+                            </StackPanel>
+                            <Border Grid.Column="2" Width="1" Height="24" Margin="3,0" VerticalAlignment="Center" Background="{ThemeResource SubtleBorderBrush}" />
+                            <Border
+                                Grid.Column="3"
+                                Height="34"
+                                Background="White"
+                                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                    <Button Click="OnPreviousPageClicked" Content="‹" FontSize="18" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Trang trước" />
+                                    <NumberBox
+                                        x:Name="PageNumberBox"
+                                        Width="50"
+                                        Height="30"
+                                        Background="#FFF2F5F6"
+                                        BorderThickness="0"
+                                        Minimum="1"
+                                        SpinButtonPlacementMode="Hidden"
+                                        ValueChanged="OnPageNumberChanged" />
+                                    <TextBlock
+                                        MinWidth="32"
+                                        Margin="1,0,2,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#FF53646E"
+                                        Text="{x:Bind ViewModel.PageCount, Mode=OneWay}" />
+                                    <Button Click="OnNextPageClicked" Content="›" FontSize="18" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Trang sau" />
+                                </StackPanel>
+                            </Border>
+                            <Border
+                                Grid.Column="4"
+                                Width="142"
+                                Height="34"
+                                Margin="5,0,0,0"
+                                HorizontalAlignment="Left"
+                                Background="White"
+                                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Click="OnZoomOutClicked" Content="−" FontSize="17" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Thu nhỏ" />
+                                    <TextBlock Width="54" VerticalAlignment="Center" FontSize="11" Text="{x:Bind ViewModel.ZoomLabel, Mode=OneWay}" TextAlignment="Center" />
+                                    <Button Click="OnZoomInClicked" Content="+" FontSize="17" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Phóng to" />
+                                </StackPanel>
+                            </Border>
+                            <Button
+                                x:Name="BookmarkButton"
+                                Grid.Column="5"
+                                Click="OnBookmarkClicked"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                ToolTipService.ToolTip="Đánh dấu trang">
+                                <FontIcon x:Name="BookmarkIcon" FontSize="17" Glyph="&#xE734;" />
+                            </Button>
+                            <Border
+                                Grid.Column="6"
+                                Height="34"
+                                Background="White"
+                                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                                <StackPanel Orientation="Horizontal" Spacing="1">
+                                    <ToggleButton x:Name="FitPageButton" Checked="OnFitPageChecked" Content="Trang" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Vừa trang" />
+                                    <ToggleButton x:Name="FitWidthButton" Checked="OnFitWidthChecked" Content="Rộng" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Vừa chiều rộng" />
+                                    <ToggleButton x:Name="SingleModeButton" Checked="OnSingleModeChecked" Content="Đơn" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Xem từng trang" />
+                                    <ToggleButton x:Name="ContinuousModeButton" Checked="OnContinuousModeChecked" Content="Liên tục" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Cuộn liên tục" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Grid.Row="1" Background="#FFEDF2F3" />
+
+                        <Grid Grid.Row="2" ColumnSpacing="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ToggleButton
+                                x:Name="PanToolButton"
+                                Grid.Column="0"
+                                Checked="OnPanToolChecked"
+                                IsChecked="True"
+                                Style="{StaticResource ToolbarToggleStyle}"
+                                ToolTipService.ToolTip="Bàn tay — kéo trang">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <FontIcon FontSize="17" Glyph="&#xE7C9;" />
+                                    <TextBlock VerticalAlignment="Center" Text="Kéo" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button Grid.Column="1" Content="Chọn" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Chọn văn bản" />
+                            <Button Grid.Column="2" Content="Bút" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Bút" />
+                            <Button Grid.Column="3" Content="Tô sáng" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Tô sáng" />
+                            <Button Grid.Column="4" Content="Gạch chân" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Gạch chân" />
+                            <Button Grid.Column="5" Content="Ghi chú" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Ghi chú" />
+                            <Button Grid.Column="6" Content="Hình" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Hình dạng" />
+                            <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="2">
+                                <Button IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Hoàn tác">
+                                    <FontIcon FontSize="16" Glyph="&#xE7A7;" />
+                                </Button>
+                                <Button IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Làm lại">
+                                    <FontIcon FontSize="16" Glyph="&#xE7A6;" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                 </Border>
+
+                <Grid
+                    x:Name="ReaderSurface"
+                    Grid.Row="1"
+                    AllowDrop="True"
+                    Background="{ThemeResource ReaderBackgroundBrush}"
+                    DragOver="OnReaderDragOver"
+                    Drop="OnReaderDrop">
+                    <Grid x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel MaxWidth="430" HorizontalAlignment="Center" Spacing="10">
+                            <Border
+                                Width="58"
+                                Height="58"
+                                HorizontalAlignment="Center"
+                                Background="{ThemeResource SelectedBrush}"
+                                CornerRadius="16">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="28"
+                                    Foreground="{ThemeResource MedNoteTealBrush}"
+                                    Glyph="&#xEA90;" />
+                            </Border>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource MedNoteNavyBrush}"
+                                Text="Mở tài liệu để bắt đầu đọc" />
+                            <TextBlock
+                                Foreground="{ThemeResource MutedTextBrush}"
+                                Text="Kéo thả PDF vào đây hoặc bấm Mở PDF. Vị trí đọc được lưu tự động trên máy."
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                            <Button
+                                Height="36"
+                                Margin="0,5,0,0"
+                                Padding="14,0"
+                                HorizontalAlignment="Center"
+                                Background="{ThemeResource MedNoteTealBrush}"
+                                BorderThickness="0"
+                                Click="OnOpenClicked"
+                                Content="Mở PDF"
+                                CornerRadius="8"
+                                Foreground="White" />
+                        </StackPanel>
+                    </Grid>
+
+                    <ListView
+                        x:Name="ContinuousPagesList"
+                        Padding="24"
+                        HorizontalContentAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.Pages, Mode=OneWay}"
+                        SelectionMode="None"
+                        Visibility="Collapsed">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsStackPanel AreStickyGroupHeadersEnabled="False" CacheLength="1.5" Orientation="Vertical" />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="IsTabStop" Value="False" />
+                                <Setter Property="Margin" Value="0,0,0,22" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PdfPageViewModel">
+                                <controls:PdfPagePresenter />
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <ScrollViewer
+                        x:Name="SinglePageScrollViewer"
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Auto"
+                        VerticalScrollMode="Enabled"
+                        Visibility="Collapsed"
+                        ZoomMode="Disabled">
+                        <Grid Padding="24">
+                            <controls:PdfPagePresenter DataContext="{x:Bind ViewModel.CurrentPageItem, Mode=OneWay}" />
+                        </Grid>
+                    </ScrollViewer>
+
+                    <Border x:Name="BusyOverlay" Background="#3A18324A" Visibility="Collapsed">
+                        <Border
+                            Width="185"
+                            Height="54"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="White"
+                            CornerRadius="10">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Spacing="10">
+                                <ProgressRing Width="22" Height="22" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                                <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource MedNoteNavyBrush}" Text="Đang mở PDF…" />
+                            </StackPanel>
+                        </Border>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>
