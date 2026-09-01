@@ -44,9 +44,22 @@ jobs:
       - name: Smoke-test packaged app startup
         shell: pwsh
         run: |
+          $startedAt = Get-Date
           $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -PassThru
           Start-Sleep -Seconds 10
           if ($process.HasExited) {
+            $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
+            if (Test-Path $startupLog) {
+              Write-Host "--- MedNote startup crash log ---"
+              Get-Content $startupLog
+            }
+
+            Write-Host "--- Relevant Windows Application events ---"
+            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $startedAt } -ErrorAction SilentlyContinue |
+              Where-Object { $_.Message -match 'MedNote.Reader|Microsoft.UI.Xaml|stowed' } |
+              Select-Object -First 10 TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+              Format-List | Out-String | Write-Host
+
             throw "MedNote.Reader.exe exited during startup with code $($process.ExitCode)"
           }
           Stop-Process -Id $process.Id -Force
