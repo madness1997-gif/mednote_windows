@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using MedNote.Core;
+using MedNote.Windows.App.Infrastructure;
 using MedNote.Windows.App.ViewModels;
+using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -10,6 +13,7 @@ public sealed partial class PdfPagePresenter : UserControl
     private PdfPageViewModel? _boundPage;
     private bool _renderLoopRunning;
     private bool _renderRequested;
+    private CanvasImageSource? _direct2DSurface;
 
     public PdfPagePresenter()
     {
@@ -20,12 +24,14 @@ public sealed partial class PdfPagePresenter : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BindPage(DataContext as PdfPageViewModel);
+        PresentSurface(_boundPage?.Surface);
         RequestRender();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _renderRequested = false;
+        ClearDirect2DSurface();
         BindPage(null);
     }
 
@@ -40,7 +46,11 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
+        if (e.PropertyName == nameof(PdfPageViewModel.Surface))
+        {
+            PresentSurface((sender as PdfPageViewModel)?.Surface);
+        }
+        else if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
             or nameof(PdfPageViewModel.DisplayHeight))
         {
             RequestRender();
@@ -64,6 +74,11 @@ public sealed partial class PdfPagePresenter : UserControl
         if (_boundPage is not null)
         {
             _boundPage.PropertyChanged += OnPagePropertyChanged;
+            PresentSurface(_boundPage.Surface);
+        }
+        else
+        {
+            ClearDirect2DSurface();
         }
     }
 
@@ -115,5 +130,34 @@ public sealed partial class PdfPagePresenter : UserControl
                 RequestRender();
             }
         }
+    }
+
+    private void PresentSurface(RenderedPdfPage? surface)
+    {
+        ClearDirect2DSurface();
+        if (!IsLoaded || surface is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _direct2DSurface = Direct2DPageSurfaceFactory.Create(surface);
+            PageImage.Source = _direct2DSurface;
+            if (_boundPage is not null)
+            {
+                RenderProbe.SignalPagePresented(_boundPage.Number, _boundPage.OwnerPageCount, surface);
+            }
+        }
+        catch (Exception exception)
+        {
+            _boundPage?.ReportPresentationError(exception);
+        }
+    }
+
+    private void ClearDirect2DSurface()
+    {
+        PageImage.Source = null;
+        _direct2DSurface = null;
     }
 }

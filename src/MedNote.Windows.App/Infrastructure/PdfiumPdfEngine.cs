@@ -2,8 +2,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using MedNote.Core;
 using PDFiumCore;
-using Windows.Graphics.Imaging;
-using Windows.Storage.Streams;
 
 namespace MedNote.Windows.App.Infrastructure;
 
@@ -41,11 +39,27 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                     throw new InvalidDataException("PDF không có trang hợp lệ.");
                 }
 
-                return (Document: document, PageCount: pageCount);
+                try
+                {
+                    return (
+                        Document: document,
+                        PageCount: pageCount,
+                        PageMetrics: ReadAllPageMetrics(document, pageCount, cancellationToken));
+                }
+                catch
+                {
+                    fpdfview.FPDF_CloseDocument(document);
+                    throw;
+                }
             },
             cancellationToken);
 
-        return new PdfiumPdfDocumentSession(fullPath, opened.Document, opened.PageCount, _dispatcher);
+        return new PdfiumPdfDocumentSession(
+            fullPath,
+            opened.Document,
+            opened.PageCount,
+            opened.PageMetrics,
+            _dispatcher);
     }
 
     public async ValueTask DisposeAsync()
@@ -68,6 +82,31 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
         _ => new InvalidDataException($"PDFium không mở được tài liệu (mã lỗi {errorCode})."),
     };
 
+    private static IReadOnlyList<PdfPageMetrics> ReadAllPageMetrics(
+        FpdfDocumentT document,
+        int pageCount,
+        CancellationToken cancellationToken)
+    {
+        var metrics = new PdfPageMetrics[pageCount];
+        using var size = new FS_SIZEF_();
+        for (var pageIndex = 0; pageIndex < pageCount; pageIndex++)
+        {
+            if ((pageIndex & 63) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            size.Width = 0;
+            size.Height = 0;
+            var succeeded = fpdfview.FPDF_GetPageSizeByIndexF(document, pageIndex, size) != 0;
+            metrics[pageIndex] = succeeded && size.Width > 0 && size.Height > 0
+                ? new PdfPageMetrics(size.Width, size.Height)
+                : new PdfPageMetrics(707d, 1_000d);
+        }
+
+        return metrics;
+    }
+
     private sealed class PdfiumPdfDocumentSession : IPdfDocumentSession, IPdfOutlineProvider, IPdfTextProvider
     {
         private const int MaximumRenderEdge = 4_096;
@@ -79,6 +118,7 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
         private const int MaximumTextRectanglesPerRequest = 100_000;
         private readonly PdfiumDispatcher _dispatcher;
         private readonly FpdfDocumentT _document;
+        private readonly IReadOnlyList<PdfPageMetrics> _pageMetrics;
         private readonly SemaphoreSlim _lifetimeGate = new(
             MaximumConcurrentOperations,
             MaximumConcurrentOperations);
@@ -88,11 +128,13 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             string path,
             FpdfDocumentT document,
             int pageCount,
+            IReadOnlyList<PdfPageMetrics> pageMetrics,
             PdfiumDispatcher dispatcher)
         {
             Path = path;
             _document = document;
             PageCount = pageCount;
+            _pageMetrics = pageMetrics;
             _dispatcher = dispatcher;
         }
 
@@ -100,23 +142,16 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
 
         public int PageCount { get; }
 
-        public async ValueTask<PdfPageMetrics> GetPageMetricsAsync(
+        public IReadOnlyList<PdfPageMetrics> PageMetrics => _pageMetrics;
+
+        public ValueTask<PdfPageMetrics> GetPageMetricsAsync(
             int pageIndex,
             CancellationToken cancellationToken = default)
         {
-            await _lifetimeGate.WaitAsync(cancellationToken);
-            try
-            {
-                ThrowIfDisposed();
-                ValidatePageIndex(pageIndex);
-                return await _dispatcher.InvokeAsync(
-                    () => GetPageMetrics(pageIndex),
-                    cancellationToken);
-            }
-            finally
-            {
-                _lifetimeGate.Release();
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfDisposed();
+            ValidatePageIndex(pageIndex);
+            return ValueTask.FromResult(_pageMetrics[pageIndex]);
         }
 
         public async ValueTask<RenderedPdfPage> RenderPageAsync(
@@ -128,18 +163,9 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             {
                 ThrowIfDisposed();
                 ValidatePageIndex(request.PageIndex);
-                var rendered = await _dispatcher.InvokeAsync(
+                return await _dispatcher.InvokeAsync(
                     () => RenderPageToBgra(request.PageIndex, request.PixelWidth, request.PixelHeight),
                     cancellationToken);
-                var png = await EncodePngAsync(
-                    rendered.Pixels,
-                    checked((uint)rendered.Width),
-                    checked((uint)rendered.Height),
-                    cancellationToken);
-                return new RenderedPdfPage(
-                    png,
-                    checked((uint)rendered.Width),
-                    checked((uint)rendered.Height));
             }
             finally
             {
@@ -242,22 +268,7 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             }
         }
 
-        private PdfPageMetrics GetPageMetrics(int pageIndex)
-        {
-            var page = LoadPage(pageIndex);
-            try
-            {
-                return new PdfPageMetrics(
-                    fpdfview.FPDF_GetPageWidthF(page),
-                    fpdfview.FPDF_GetPageHeightF(page));
-            }
-            finally
-            {
-                fpdfview.FPDF_ClosePage(page);
-            }
-        }
-
-        private BgraPage RenderPageToBgra(int pageIndex, uint requestedWidth, uint requestedHeight)
+        private RenderedPdfPage RenderPageToBgra(int pageIndex, uint requestedWidth, uint requestedHeight)
         {
             var page = LoadPage(pageIndex);
             FpdfBitmapT? bitmap = null;
@@ -305,7 +316,11 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                         rowBytes);
                 }
 
-                return new BgraPage(pixels, width, height);
+                return new RenderedPdfPage(
+                    pixels,
+                    checked((uint)width),
+                    checked((uint)height),
+                    checked((uint)rowBytes));
             }
             finally
             {
@@ -559,37 +574,5 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
         private void ThrowIfDisposed() =>
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
-        private static async ValueTask<byte[]> EncodePngAsync(
-            byte[] pixels,
-            uint width,
-            uint height,
-            CancellationToken cancellationToken)
-        {
-            using var output = new InMemoryRandomAccessStream();
-            var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, output)
-                .AsTask(cancellationToken);
-            encoder.SetPixelData(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Ignore,
-                width,
-                height,
-                96d,
-                96d,
-                pixels);
-            await encoder.FlushAsync().AsTask(cancellationToken);
-            if (output.Size > int.MaxValue)
-            {
-                throw new InvalidDataException("Ảnh trang PDF vượt giới hạn bộ nhớ.");
-            }
-
-            output.Seek(0);
-            using var reader = new DataReader(output.GetInputStreamAt(0));
-            await reader.LoadAsync(checked((uint)output.Size)).AsTask(cancellationToken);
-            var png = new byte[checked((int)output.Size)];
-            reader.ReadBytes(png);
-            return png;
-        }
-
-        private sealed record BgraPage(byte[] Pixels, int Width, int Height);
     }
 }

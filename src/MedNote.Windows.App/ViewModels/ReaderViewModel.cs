@@ -7,6 +7,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     private readonly IPdfEngine _pdfEngine;
     private readonly ReaderPersistenceCoordinator _persistence;
     private readonly BitmapBudget<string> _bitmapBudget = new();
+    private readonly PdfRenderScheduler _renderScheduler = new();
     private readonly SemaphoreSlim _documentGate = new(1, 1);
     private IPdfDocumentSession? _session;
     private IReadOnlyList<PdfPageViewModel> _pages = Array.Empty<PdfPageViewModel>();
@@ -154,7 +155,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public ReaderPosition SavedPosition => _position;
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(bool reopenActiveDocument = true, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         try
@@ -168,7 +169,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         }
 
         var active = _persistence.ActiveDocument;
-        if (active is null || !File.Exists(active.Path))
+        if (!reopenActiveDocument || active is null || !File.Exists(active.Path))
         {
             return;
         }
@@ -303,15 +304,21 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public void RefreshPageLayout(PdfPageViewModel page)
     {
+        var layout = CalculatePageLayout(page.AspectRatio);
+        page.SetLayout(layout.Width, layout.Height, notify: true);
+    }
+
+    private (double Width, double Height) CalculatePageLayout(double aspectRatio)
+    {
         var horizontalMargin = ViewMode == PdfViewMode.Continuous ? 56d : 36d;
         var verticalMargin = ViewMode == PdfViewMode.Continuous ? 42d : 36d;
         var availableWidth = Math.Max(280d, _viewportWidth - horizontalMargin);
         var availableHeight = Math.Max(280d, _viewportHeight - verticalMargin);
         var baseWidth = FitMode == PdfFitMode.Width || ViewMode == PdfViewMode.Continuous
             ? availableWidth
-            : Math.Min(availableWidth, availableHeight * page.AspectRatio);
+            : Math.Min(availableWidth, availableHeight * aspectRatio);
         var width = baseWidth * Zoom;
-        page.SetLayout(width, width / Math.Max(0.05d, page.AspectRatio));
+        return (width, width / Math.Max(0.05d, aspectRatio));
     }
 
     public void CapturePosition(ReaderPosition position)
@@ -402,7 +409,11 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     {
         foreach (var page in Pages)
         {
-            RefreshPageLayout(page);
+            var layout = CalculatePageLayout(page.AspectRatio);
+            page.SetLayout(
+                layout.Width,
+                layout.Height,
+                notify: page.IsPinned || ReferenceEquals(page, CurrentPageItem));
         }
     }
 
@@ -444,10 +455,23 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
             ViewMode = nextReader.ViewMode;
             Bookmarks = nextReader.Bookmarks.ToArray();
             Pages = Enumerable.Range(0, PageCount)
-                .Select(index => new PdfPageViewModel(this, openedSession, _bitmapBudget, documentId, index))
+                .Select(index =>
+                {
+                    var metrics = openedSession.PageMetrics[index];
+                    var layout = CalculatePageLayout(metrics.AspectRatio);
+                    return new PdfPageViewModel(
+                        this,
+                        openedSession,
+                        _bitmapBudget,
+                        _renderScheduler,
+                        documentId,
+                        index,
+                        metrics,
+                        layout.Width,
+                        layout.Height);
+                })
                 .ToArray();
             HasDocument = true;
-            RefreshAllPageLayouts();
             StatusText = $"{PageCount:N0} trang";
 
             foreach (var page in oldPages)

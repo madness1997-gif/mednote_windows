@@ -25,9 +25,24 @@ public readonly record struct PdfPageMetrics(double Width, double Height)
 
 public readonly record struct PdfRenderRequest(int PageIndex, uint PixelWidth, uint PixelHeight);
 
-public sealed record RenderedPdfPage(byte[] PngBytes, uint PixelWidth, uint PixelHeight)
+public sealed record RenderedPdfPage(byte[] BgraBytes, uint PixelWidth, uint PixelHeight, uint Stride)
 {
-    public long EstimatedBitmapBytes => checked((long)PixelWidth * PixelHeight * 4L);
+    public RenderedPdfPage(byte[] bgraBytes, uint pixelWidth, uint pixelHeight)
+        : this(bgraBytes, pixelWidth, pixelHeight, checked(pixelWidth * 4u))
+    {
+    }
+
+    public long EstimatedBitmapBytes => checked((long)Stride * PixelHeight);
+
+    // A realized Direct2D page owns both the managed upload buffer and a GPU
+    // surface. Count both so the cache budget remains conservative.
+    public long EstimatedResidentBytes => checked(EstimatedBitmapBytes * 2L);
+
+    public bool HasValidBuffer =>
+        PixelWidth > 0
+        && PixelHeight > 0
+        && (long)Stride >= checked((long)PixelWidth * 4L)
+        && BgraBytes.LongLength >= checked((long)Stride * PixelHeight);
 }
 
 public interface IPdfDocumentSession : IAsyncDisposable
@@ -35,6 +50,8 @@ public interface IPdfDocumentSession : IAsyncDisposable
     string Path { get; }
 
     int PageCount { get; }
+
+    IReadOnlyList<PdfPageMetrics> PageMetrics { get; }
 
     ValueTask<PdfPageMetrics> GetPageMetricsAsync(int pageIndex, CancellationToken cancellationToken = default);
 

@@ -23,3 +23,14 @@ PDFiumCore provides the generated .NET P/Invoke bindings used by the Reader.
 MedNote does not modify PDFium or PDFiumCore. The original copyright notices,
 license terms, and attribution files supplied by those packages remain
 applicable.
+
+## Win2D
+
+- Project: https://github.com/microsoft/Win2D
+- Package: Microsoft.Graphics.Win2D 1.4.0
+- Binary package license: Microsoft Win2D EULA
+  (https://www.microsoft.com/web/webpi/eula/eula_win2d_10012014.htm)
+- Source repository license: MIT License
+
+Win2D supplies the managed Direct2D interop and XAML image surface used by the
+Reader's native page-display path.

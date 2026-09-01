@@ -139,10 +139,12 @@
                     <StackPanel Margin="5,0,3,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
                         <Ellipse Width="7" Height="7" Fill="#FF4BA889" />
                         <TextBlock
+                            MaxWidth="170"
                             VerticalAlignment="Center"
                             FontSize="11"
                             Foreground="{ThemeResource MutedTextBrush}"
-                            Text="Đã lưu trên máy" />
+                            Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <Button
                         Height="34"
@@ -308,7 +310,14 @@
                                             BorderBrush="#FFD8DCDE"
                                             BorderThickness="1"
                                             CornerRadius="2">
-                                            <Image Source="{x:Bind Bitmap, Mode=OneWay}" Stretch="Uniform" />
+                                            <Grid>
+                                                <FontIcon
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="20"
+                                                    Foreground="#FFA8B4BA"
+                                                    Glyph="&#xE8A5;" />
+                                            </Grid>
                                         </Border>
                                         <TextBlock
                                             Grid.Column="1"

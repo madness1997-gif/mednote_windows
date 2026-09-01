@@ -44,59 +44,97 @@ jobs:
       - name: Smoke-test packaged app startup and PDF rendering
         shell: pwsh
         run: |
-          $startedAt = Get-Date
           $smokePdf = Join-Path $env:RUNNER_TEMP "mednote-render-smoke.pdf"
-          $renderProbe = Join-Path $env:RUNNER_TEMP "mednote-render-ready.txt"
+          $largePdf = Join-Path $env:RUNNER_TEMP "mednote-render-3000-pages.pdf"
           $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
           [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
-          $env:MEDNOTE_RENDER_PROBE = $renderProbe
-          $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe `
-            -ArgumentList "`"$smokePdf`"" -PassThru
+          & tests/fixtures/New-MixedPagePdf.ps1 -Path $largePdf -PageCount 3000
 
-          $rendered = $false
-          foreach ($attempt in 1..30) {
-            Start-Sleep -Seconds 1
-            if ($process.HasExited) { break }
-            if (Test-Path $renderProbe) {
-              $rendered = $true
-              break
+          function Invoke-MedNoteRenderSmoke {
+            param(
+              [Parameter(Mandatory = $true)][string]$PdfPath,
+              [Parameter(Mandatory = $true)][int]$TargetPage,
+              [Parameter(Mandatory = $true)][int]$ExpectedPages,
+              [Parameter(Mandatory = $true)][string]$ProbeName
+            )
+
+            $startedAt = Get-Date
+            $renderProbe = Join-Path $env:RUNNER_TEMP $ProbeName
+            Remove-Item $renderProbe -Force -ErrorAction SilentlyContinue
+            $env:MEDNOTE_RENDER_PROBE = $renderProbe
+            $env:MEDNOTE_RENDER_TARGET_PAGE = $TargetPage.ToString()
+            $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe `
+              -ArgumentList "`"$PdfPath`"" -PassThru
+
+            try {
+              $rendered = $false
+              foreach ($attempt in 1..45) {
+                Start-Sleep -Seconds 1
+                if ($process.HasExited) { break }
+                if (Test-Path $renderProbe) {
+                  $rendered = $true
+                  break
+                }
+              }
+
+              if ($process.HasExited) {
+                $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
+                if (Test-Path $startupLog) {
+                  Write-Host "--- MedNote startup crash log ---"
+                  Get-Content $startupLog
+                }
+
+                Write-Host "--- Relevant Windows Application events ---"
+                Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $startedAt } -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Message -match 'MedNote.Reader|Microsoft.UI.Xaml|stowed' } |
+                  Select-Object -First 10 TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+                  Format-List | Out-String | Write-Host
+
+                throw "MedNote.Reader.exe exited during startup with code $($process.ExitCode)"
+              }
+
+              if (-not $rendered) {
+                $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
+                if (Test-Path $startupLog) {
+                  Write-Host "--- MedNote startup/render diagnostic log ---"
+                  Get-Content $startupLog
+                }
+                throw "MedNote opened but did not render page $TargetPage within 45 seconds"
+              }
+
+              $probe = (Get-Content $renderProbe -Raw).Trim()
+              Write-Host "PDF render probe: $probe"
+              if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=\d+;height=\d+;bytes=\d+;workingSet=(\d+);elapsedMs=\d+$') {
+                throw "Invalid Direct2D render probe: $probe"
+              }
+
+              $renderedPage = [int]$Matches[1]
+              $documentPages = [int]$Matches[2]
+              $workingSet = [long]$Matches[3]
+              if ($renderedPage -ne $TargetPage -or $documentPages -ne $ExpectedPages) {
+                throw "Unexpected rendered page/document count: $renderedPage/$documentPages"
+              }
+              if ($workingSet -gt 805306368) {
+                throw "Working set exceeded the 768 MiB smoke-test ceiling: $workingSet bytes"
+              }
+
+              $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)"
+              if ($children) {
+                throw "Unexpected child process(es): $($children.Name -join ', ')"
+              }
+            } finally {
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
             }
           }
 
-          if ($process.HasExited) {
-            $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
-            if (Test-Path $startupLog) {
-              Write-Host "--- MedNote startup crash log ---"
-              Get-Content $startupLog
-            }
-
-            Write-Host "--- Relevant Windows Application events ---"
-            Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $startedAt } -ErrorAction SilentlyContinue |
-              Where-Object { $_.Message -match 'MedNote.Reader|Microsoft.UI.Xaml|stowed' } |
-              Select-Object -First 10 TimeCreated, ProviderName, Id, LevelDisplayName, Message |
-              Format-List | Out-String | Write-Host
-
-            throw "MedNote.Reader.exe exited during startup with code $($process.ExitCode)"
-          }
-
-          if (-not $rendered) {
-            $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
-            if (Test-Path $startupLog) {
-              Write-Host "--- MedNote startup/render diagnostic log ---"
-              Get-Content $startupLog
-            }
-            Stop-Process -Id $process.Id -Force
-            throw "MedNote opened but did not render the smoke-test PDF within 30 seconds"
-          }
-
-          $probe = Get-Content $renderProbe -Raw
-          Write-Host "PDF render probe: $probe"
-          if ($probe -notmatch '^page=1;width=\d+;height=\d+;bytes=\d+$') {
-            Stop-Process -Id $process.Id -Force
-            throw "Invalid PDF render probe: $probe"
-          }
-
-          Stop-Process -Id $process.Id -Force
+          Invoke-MedNoteRenderSmoke -PdfPath $smokePdf -TargetPage 1 -ExpectedPages 1 `
+            -ProbeName "mednote-render-small.txt"
+          Invoke-MedNoteRenderSmoke -PdfPath $largePdf -TargetPage 1500 -ExpectedPages 3000 `
+            -ProbeName "mednote-render-large.txt"
+          Remove-Item Env:MEDNOTE_RENDER_PROBE -ErrorAction SilentlyContinue
+          Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
       - name: Verify native artifact boundary
         shell: pwsh
         run: |
@@ -106,6 +144,9 @@ jobs:
           $pdfium = Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File -Filter pdfium.dll
           if (-not $pdfium) { throw "PDFium native runtime was not published" }
 
+          $win2d = Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File -Filter Microsoft.Graphics.Canvas.dll
+          if (-not $win2d) { throw "Win2D Direct2D runtime was not published" }
+
           $webReferences = Get-ChildItem src -Recurse -File -Include *.cs,*.xaml,*.csproj |
             Select-String -Pattern 'WebView2|Microsoft\.Web\.WebView2'
           if ($webReferences) { throw "WebView2 reference found in native source: $($webReferences.Path -join ', ')" }
@@ -114,6 +155,12 @@ jobs:
             Select-String -Pattern 'Windows\.Data\.Pdf|WindowsPdfEngine'
           if ($milestoneRenderer) {
             throw "Milestone PDF renderer still exists: $($milestoneRenderer.Path -join ', ')"
+          }
+
+          $encodedSurfacePipeline = Get-ChildItem src -Recurse -File -Include *.cs,*.csproj |
+            Select-String -Pattern 'BitmapEncoder|PngEncoderId|BitmapImage|SetSourceAsync|InMemoryRandomAccessStream'
+          if ($encodedSurfacePipeline) {
+            throw "Encoded image pipeline returned: $($encodedSurfacePipeline.Path -join ', ')"
           }
 
           $notice = Get-ChildItem artifacts/MedNote-Reader-Windows/THIRD-PARTY-NOTICES.md -ErrorAction Stop

@@ -22,8 +22,12 @@ public sealed class ReaderViewportController : IDisposable
     private readonly ScrollViewer _singlePage;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherTimer _positionTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private readonly DispatcherTimer _viewportTimer = new() { Interval = TimeSpan.FromMilliseconds(90) };
     private ScrollViewer? _continuousScrollViewer;
+    private XamlRoot? _xamlRoot;
     private ReaderPosition? _pendingPosition;
+    private Size _pendingViewportSize;
+    private double _pendingRasterizationScale = 1d;
     private Point _panStart;
     private double _panHorizontalOffset;
     private double _panVerticalOffset;
@@ -32,6 +36,7 @@ public sealed class ReaderViewportController : IDisposable
     private bool _restoringPosition;
     private bool _initialized;
     private bool _disposed;
+    private int _restoreGeneration;
 
     public ReaderViewportController(
         ReaderViewModel viewModel,
@@ -57,8 +62,14 @@ public sealed class ReaderViewportController : IDisposable
 
         _initialized = true;
         _positionTimer.Tick += OnPositionTimerTick;
+        _viewportTimer.Tick += OnViewportTimerTick;
         _singlePage.ViewChanged += OnSingleViewChanged;
         _surface.SizeChanged += OnSurfaceSizeChanged;
+        _xamlRoot = _surface.XamlRoot;
+        if (_xamlRoot is not null)
+        {
+            _xamlRoot.Changed += OnXamlRootChanged;
+        }
         _surface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
         _surface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
         _surface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
@@ -115,6 +126,9 @@ public sealed class ReaderViewportController : IDisposable
             return;
         }
 
+        var generation = Interlocked.Increment(ref _restoreGeneration);
+        _positionTimer.Stop();
+        _pendingPosition = null;
         _restoringPosition = true;
         try
         {
@@ -124,33 +138,63 @@ public sealed class ReaderViewportController : IDisposable
             {
                 await NextUiTurnAsync();
                 var height = _viewModel.CurrentPageItem?.DisplayHeight ?? 0d;
+                var targetVerticalOffset = position.PageOffsetRatio * height;
                 _singlePage.ChangeView(
                     position.HorizontalOffset,
-                    position.PageOffsetRatio * height,
+                    targetVerticalOffset,
                     null,
                     true);
+                await NextUiTurnAsync();
+                if (generation == Volatile.Read(ref _restoreGeneration)
+                    && Math.Abs(_singlePage.VerticalOffset - targetVerticalOffset) > 1d)
+                {
+                    _singlePage.ChangeView(position.HorizontalOffset, targetVerticalOffset, null, true);
+                }
+
                 return;
             }
 
             var item = _viewModel.Pages[position.AnchorPage - 1];
             _continuousPages.ScrollIntoView(item, ScrollIntoViewAlignment.Leading);
-            await NextUiTurnAsync();
-            await NextUiTurnAsync();
-            EnsureContinuousScrollViewer();
-            var container = _continuousPages.ContainerFromItem(item) as FrameworkElement;
-            if (_continuousScrollViewer is not null && container is not null)
+            var container = await WaitForContainerAsync(item, generation);
+            if (container is not null && generation == Volatile.Read(ref _restoreGeneration))
             {
-                _continuousScrollViewer.ChangeView(
-                    position.HorizontalOffset,
-                    _continuousScrollViewer.VerticalOffset + (position.PageOffsetRatio * container.ActualHeight),
-                    null,
-                    true);
+                ApplyContinuousPosition(position, container);
+                for (var pass = 0; pass < 3; pass++)
+                {
+                    await NextUiTurnAsync();
+                    if (generation != Volatile.Read(ref _restoreGeneration))
+                    {
+                        return;
+                    }
+
+                    container = _continuousPages.ContainerFromItem(item) as FrameworkElement;
+                    if (container is null || container.ActualHeight <= 1d)
+                    {
+                        break;
+                    }
+
+                    var correction = ContinuousPositionCorrection(position, container);
+                    if (Math.Abs(correction) <= 1d)
+                    {
+                        break;
+                    }
+
+                    _continuousScrollViewer?.ChangeView(
+                        position.HorizontalOffset,
+                        Math.Max(0d, _continuousScrollViewer.VerticalOffset + correction),
+                        null,
+                        true);
+                }
             }
         }
         finally
         {
             await NextUiTurnAsync();
-            _restoringPosition = false;
+            if (generation == Volatile.Read(ref _restoreGeneration))
+            {
+                _restoringPosition = false;
+            }
         }
     }
 
@@ -164,9 +208,16 @@ public sealed class ReaderViewportController : IDisposable
         _disposed = true;
         _positionTimer.Stop();
         _positionTimer.Tick -= OnPositionTimerTick;
+        _viewportTimer.Stop();
+        _viewportTimer.Tick -= OnViewportTimerTick;
         _pendingPosition = null;
         _singlePage.ViewChanged -= OnSingleViewChanged;
         _surface.SizeChanged -= OnSurfaceSizeChanged;
+        if (_xamlRoot is not null)
+        {
+            _xamlRoot.Changed -= OnXamlRootChanged;
+            _xamlRoot = null;
+        }
         _surface.RemoveHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed));
         _surface.RemoveHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved));
         _surface.RemoveHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased));
@@ -188,8 +239,28 @@ public sealed class ReaderViewportController : IDisposable
     {
         if (_surface.XamlRoot is not null)
         {
-            _viewModel.SetViewport(e.NewSize.Width, e.NewSize.Height, _surface.XamlRoot.RasterizationScale);
+            QueueViewport(e.NewSize, _surface.XamlRoot.RasterizationScale);
         }
+    }
+
+    private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) =>
+        QueueViewport(new Size(_surface.ActualWidth, _surface.ActualHeight), sender.RasterizationScale);
+
+    private void QueueViewport(Size size, double rasterizationScale)
+    {
+        _pendingViewportSize = size;
+        _pendingRasterizationScale = rasterizationScale;
+        _viewportTimer.Stop();
+        _viewportTimer.Start();
+    }
+
+    private void OnViewportTimerTick(object? sender, object e)
+    {
+        _viewportTimer.Stop();
+        _viewModel.SetViewport(
+            _pendingViewportSize.Width,
+            _pendingViewportSize.Height,
+            _pendingRasterizationScale);
     }
 
     private void OnContinuousViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
@@ -342,6 +413,57 @@ public sealed class ReaderViewportController : IDisposable
         }
 
         return _continuousScrollViewer;
+    }
+
+    private async Task<FrameworkElement?> WaitForContainerAsync(PdfPageViewModel item, int generation)
+    {
+        for (var pass = 0; pass < 14; pass++)
+        {
+            if (generation != Volatile.Read(ref _restoreGeneration))
+            {
+                return null;
+            }
+
+            EnsureContinuousScrollViewer();
+            var container = _continuousPages.ContainerFromItem(item) as FrameworkElement;
+            if (_continuousScrollViewer is not null && container is not null && container.ActualHeight > 1d)
+            {
+                return container;
+            }
+
+            if (pass is 4 or 9)
+            {
+                _continuousPages.ScrollIntoView(item, ScrollIntoViewAlignment.Leading);
+            }
+
+            await NextUiTurnAsync();
+        }
+
+        return null;
+    }
+
+    private void ApplyContinuousPosition(ReaderPosition position, FrameworkElement container)
+    {
+        if (_continuousScrollViewer is null)
+        {
+            return;
+        }
+
+        var correction = ContinuousPositionCorrection(position, container);
+        _continuousScrollViewer.ChangeView(
+            position.HorizontalOffset,
+            Math.Max(0d, _continuousScrollViewer.VerticalOffset + correction),
+            null,
+            true);
+    }
+
+    private double ContinuousPositionCorrection(ReaderPosition position, FrameworkElement container)
+    {
+        var location = container.TransformToVisual(_continuousPages).TransformPoint(new Point());
+        return ReaderMath.ContinuousAnchorCorrection(
+            location.Y,
+            container.ActualHeight,
+            position.PageOffsetRatio);
     }
 
     private Task NextUiTurnAsync()

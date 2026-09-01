@@ -39,4 +39,11 @@ public sealed class ReaderStateTests
         Assert.AreEqual(0.42, position.PageOffsetRatio, 0.000_001);
         Assert.AreEqual(0d, position.HorizontalOffset);
     }
+
+    [TestMethod]
+    public void ContinuousAnchorCorrection_AccountsForContainerTopAndWithinPageRatio()
+    {
+        Assert.AreEqual(250d, ReaderMath.ContinuousAnchorCorrection(-150d, 1_000d, 0.4d), 0.000_001d);
+        Assert.AreEqual(-150d, ReaderMath.ContinuousAnchorCorrection(-150d, 1_000d, -1d), 0.000_001d);
+    }
 }

@@ -96,4 +96,9 @@ public static class ReaderMath
         var delta = direction < 0 ? -0.1d : 0.1d;
         return Math.Round(ClampZoom(zoom + delta), 2, MidpointRounding.AwayFromZero);
     }
+
+    public static double ContinuousAnchorCorrection(double containerTop, double containerHeight, double pageOffsetRatio) =>
+        containerTop
+        + Math.Clamp(double.IsFinite(pageOffsetRatio) ? pageOffsetRatio : 0d, 0d, 1d)
+        * Math.Max(1d, containerHeight);
 }

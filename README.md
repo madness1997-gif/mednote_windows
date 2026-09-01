@@ -10,12 +10,16 @@ The first vertical slice already contains:
 - native PDF rendering through PDFiumCore/PDFium;
 - open and drag/drop PDF;
 - single-page and virtualized continuous modes;
+- a zero-encode PDFium BGRA → Win2D/Direct2D display path;
 - page navigation, fit-page, fit-width, and zoom;
 - hand/pan as the default Reader tool;
 - bookmarks;
 - exact document IDs compatible with the web app's FNV-1a identity;
 - page/within-page scroll anchors persisted under `%LOCALAPPDATA%\MedNote Reader`;
-- a 192 MB LRU bitmap budget and cancellation when pages leave the viewport;
+- a 192 MB CPU/GPU surface budget, one-slot render scheduler, and cancellation
+  when pages leave the viewport;
+- one-pass page-metrics discovery and a packaged-app smoke benchmark that jumps
+  directly to page 1,500 of a generated 3,000-page mixed-size PDF;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
 
 The M2 backend now implements renderer-independent PDF outline destinations,
@@ -66,4 +70,6 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-Text selection, search/outline extraction, annotations editing, Note, Google Drive sync, and an installer are deliberately not coupled to the initial renderer. Their contracts and order are defined in the roadmap.
+Text selection, annotations editing, Note, Google Drive sync, and an installer
+are deliberately not coupled to the renderer. Search and outline extraction
+exist at the backend contract level; their full Reader UI remains roadmap work.

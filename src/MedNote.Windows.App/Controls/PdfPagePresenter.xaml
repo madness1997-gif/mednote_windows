@@ -23,7 +23,7 @@
             </Border.Shadow>
             <Grid>
                 <Image
-                    Source="{Binding Bitmap}"
+                    x:Name="PageImage"
                     Stretch="Fill"
                     AutomationProperties.Name="Trang PDF" />
                 <ProgressRing

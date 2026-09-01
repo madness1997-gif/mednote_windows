@@ -54,10 +54,12 @@ public sealed partial class MainWindow : Window
 
         _initialized = true;
         _viewport.Initialize();
-        await ViewModel.InitializeAsync();
-        if (!string.IsNullOrWhiteSpace(_startupDocumentPath) && File.Exists(_startupDocumentPath))
+        var hasStartupDocument = !string.IsNullOrWhiteSpace(_startupDocumentPath)
+            && File.Exists(_startupDocumentPath);
+        await ViewModel.InitializeAsync(reopenActiveDocument: !hasStartupDocument);
+        if (hasStartupDocument)
         {
-            await OpenFileAsync(_startupDocumentPath);
+            await OpenFileAsync(_startupDocumentPath!);
             return;
         }
 
@@ -89,7 +91,15 @@ public sealed partial class MainWindow : Window
         {
             await ViewModel.OpenDocumentAsync(path);
             ApplyViewModelState();
-            await _viewport.RestoreSavedPositionAsync();
+            var probePage = RenderProbe.TargetPage(ViewModel.PageCount);
+            if (probePage is not null)
+            {
+                NavigateToPage(probePage.Value, true);
+            }
+            else
+            {
+                await _viewport.RestoreSavedPositionAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -143,7 +153,7 @@ public sealed partial class MainWindow : Window
         ApplyFitMode();
     }
 
-    private void OnSingleModeChecked(object sender, RoutedEventArgs e)
+    private async void OnSingleModeChecked(object sender, RoutedEventArgs e)
     {
         if (_updatingControls)
         {
@@ -153,7 +163,7 @@ public sealed partial class MainWindow : Window
         _viewport.CaptureCurrentPosition();
         ViewModel.SetViewMode(PdfViewMode.Single);
         ApplyViewMode();
-        NavigateToPage(ViewModel.CurrentPage, true);
+        await _viewport.RestoreSavedPositionAsync();
     }
 
     private async void OnContinuousModeChecked(object sender, RoutedEventArgs e)

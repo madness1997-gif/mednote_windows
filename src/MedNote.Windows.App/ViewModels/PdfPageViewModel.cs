@@ -1,7 +1,4 @@
 using MedNote.Core;
-using MedNote.Windows.App.Infrastructure;
-using Microsoft.UI.Xaml.Media.Imaging;
-using Windows.Storage.Streams;
 
 namespace MedNote.Windows.App.ViewModels;
 
@@ -10,12 +7,13 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     private readonly ReaderViewModel _owner;
     private readonly IPdfDocumentSession _session;
     private readonly BitmapBudget<string> _bitmapBudget;
+    private readonly PdfRenderScheduler _renderScheduler;
     private readonly string _cacheKey;
     private CancellationTokenSource? _renderCancellation;
-    private PdfPageMetrics _metrics = new(707, 1_000);
-    private BitmapImage? _bitmap;
-    private double _displayWidth = 640;
-    private double _displayHeight = 905;
+    private readonly PdfPageMetrics _metrics;
+    private RenderedPdfPage? _surface;
+    private double _displayWidth;
+    private double _displayHeight;
     private bool _isRendering;
     private bool _isPinned;
     private string? _error;
@@ -27,12 +25,20 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         ReaderViewModel owner,
         IPdfDocumentSession session,
         BitmapBudget<string> bitmapBudget,
+        PdfRenderScheduler renderScheduler,
         string documentId,
-        int pageIndex)
+        int pageIndex,
+        PdfPageMetrics metrics,
+        double displayWidth,
+        double displayHeight)
     {
         _owner = owner;
         _session = session;
         _bitmapBudget = bitmapBudget;
+        _renderScheduler = renderScheduler;
+        _metrics = metrics;
+        _displayWidth = displayWidth;
+        _displayHeight = displayHeight;
         PageIndex = pageIndex;
         Number = pageIndex + 1;
         _cacheKey = $"{documentId}:{Number}";
@@ -44,10 +50,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
     public string PageLabel => $"Trang {Number}";
 
-    public BitmapImage? Bitmap
+    internal int OwnerPageCount => _owner.PageCount;
+
+    public RenderedPdfPage? Surface
     {
-        get => _bitmap;
-        private set => SetProperty(ref _bitmap, value);
+        get => _surface;
+        private set => SetProperty(ref _surface, value);
     }
 
     public double DisplayWidth
@@ -90,7 +98,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
     public double AspectRatio => _metrics.AspectRatio;
 
-    public void SetLayout(double width, double height)
+    public void SetLayout(double width, double height, bool notify)
     {
         width = Math.Max(180d, width);
         height = Math.Max(240d, height);
@@ -101,13 +109,21 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
             return;
         }
 
-        DisplayWidth = width;
-        DisplayHeight = height;
+        if (notify)
+        {
+            DisplayWidth = width;
+            DisplayHeight = height;
+        }
+        else
+        {
+            _displayWidth = width;
+            _displayHeight = height;
+        }
 
         var desiredPixelWidth = DesiredPixelSize().Width;
-        if (Bitmap is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) > 0.16d)
+        if (Surface is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) > 0.16d)
         {
-            EvictBitmap();
+            EvictSurface();
         }
     }
 
@@ -115,6 +131,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         IsPinned = true;
+        _owner.RefreshPageLayout(this);
         await EnsureRenderedAsync(cancellationToken);
     }
 
@@ -124,12 +141,18 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         _renderCancellation?.Cancel();
     }
 
+    internal void ReportPresentationError(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        Error = $"Không hiển thị được trang {Number} bằng Direct2D: {exception.Message}";
+    }
+
     public async Task EnsureRenderedAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var desiredPixelSize = DesiredPixelSize();
         var desiredPixelWidth = desiredPixelSize.Width;
-        if (Bitmap is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) <= 0.16d)
+        if (Surface is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) <= 0.16d)
         {
             _bitmapBudget.Touch(_cacheKey);
             return;
@@ -145,44 +168,30 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
         try
         {
-            var metrics = await _session.GetPageMetricsAsync(PageIndex, token);
-            if (metrics.Width > 0 && metrics.Height > 0 && metrics != _metrics)
-            {
-                _metrics = metrics;
-                OnPropertyChanged(nameof(AspectRatio));
-                _owner.RefreshPageLayout(this);
-                desiredPixelSize = DesiredPixelSize();
-                desiredPixelWidth = desiredPixelSize.Width;
-            }
-
-            var rendered = await _session.RenderPageAsync(
-                new PdfRenderRequest(PageIndex, desiredPixelWidth, desiredPixelSize.Height),
+            var estimatedBytes = checked((long)desiredPixelSize.Width * desiredPixelSize.Height * 4L);
+            var rendered = await _renderScheduler.RunAsync(
+                estimatedBytes,
+                renderToken => _session.RenderPageAsync(
+                    new PdfRenderRequest(PageIndex, desiredPixelWidth, desiredPixelSize.Height),
+                    renderToken),
                 token);
             token.ThrowIfCancellationRequested();
-
-            using var stream = new InMemoryRandomAccessStream();
-            using (var writer = new DataWriter(stream))
-            {
-                writer.WriteBytes(rendered.PngBytes);
-                await writer.StoreAsync().AsTask(token);
-                writer.DetachStream();
-            }
-
-            stream.Seek(0);
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(stream).AsTask(token);
             if (generation != _renderGeneration || !IsPinned)
             {
                 return;
             }
 
-            Bitmap = bitmap;
+            if (!rendered.HasValidBuffer)
+            {
+                throw new InvalidDataException($"Buffer BGRA của trang {Number} không hợp lệ.");
+            }
+
+            Surface = rendered;
             _renderedPixelWidth = rendered.PixelWidth;
-            RenderProbe.SignalPageRendered(Number, rendered);
             _bitmapBudget.Report(
                 _cacheKey,
-                rendered.EstimatedBitmapBytes,
-                EvictBitmap,
+                rendered.EstimatedResidentBytes,
+                EvictSurface,
                 () => IsPinned);
         }
         catch (OperationCanceledException)
@@ -216,13 +225,13 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         _renderCancellation?.Cancel();
         _renderCancellation?.Dispose();
         _bitmapBudget.Remove(_cacheKey);
-        Bitmap = null;
+        Surface = null;
     }
 
-    private void EvictBitmap()
+    private void EvictSurface()
     {
         _bitmapBudget.Remove(_cacheKey);
-        Bitmap = null;
+        Surface = null;
         _renderedPixelWidth = 0;
     }
 

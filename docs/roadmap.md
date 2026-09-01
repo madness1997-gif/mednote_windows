@@ -11,6 +11,10 @@
 - [x] local atomic persistence;
 - [x] web-compatible document IDs and Reader JSON;
 - [x] 3,000-page virtualization and bitmap-budget tests.
+- [x] Direct2D page surfaces without PNG encode/decode;
+- [x] bounded/cancellable render scheduler and cached page metrics;
+- [x] packaged 3,000-page page-jump smoke benchmark with a memory ceiling;
+- [x] DPI-aware layout refresh and ratio-based two-pass position restore.
 
 ## M2 — Production PDFium backend
 
@@ -25,7 +29,8 @@
 - [ ] thumbnail virtualization;
 - [ ] rotation-aware render/layout;
 - [ ] encrypted/password PDF flow;
-- [ ] test corpus: scans, tables, mixed page sizes, 2,000–3,000 pages.
+- [x] generated mixed-page-size 3,000-page CI fixture;
+- [ ] real-world test corpus: scans, tables, malformed boxes, and encrypted PDFs.
 
 ## M3 — Reader annotations
 
