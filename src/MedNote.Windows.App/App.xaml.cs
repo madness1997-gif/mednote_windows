@@ -25,9 +25,15 @@ public partial class App : Application
     {
         try
         {
-            var startupDocumentPath = string.IsNullOrWhiteSpace(args.Arguments)
-                ? null
-                : args.Arguments.Trim().Trim('"');
+            var startupDocumentPath = Environment.GetCommandLineArgs()
+                .Skip(1)
+                .Select(argument => argument.Trim().Trim('"'))
+                .FirstOrDefault(argument => argument.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(startupDocumentPath) && !string.IsNullOrWhiteSpace(args.Arguments))
+            {
+                startupDocumentPath = args.Arguments.Trim().Trim('"');
+            }
+
             _window = new MainWindow(startupDocumentPath);
             _window.Activate();
         }

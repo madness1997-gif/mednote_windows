@@ -80,6 +80,11 @@ jobs:
           }
 
           if (-not $rendered) {
+            $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
+            if (Test-Path $startupLog) {
+              Write-Host "--- MedNote startup/render diagnostic log ---"
+              Get-Content $startupLog
+            }
             Stop-Process -Id $process.Id -Force
             throw "MedNote opened but did not render the smoke-test PDF within 30 seconds"
           }

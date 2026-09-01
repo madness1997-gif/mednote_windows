@@ -40,7 +40,17 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     public IReadOnlyList<PdfPageViewModel> Pages
     {
         get => _pages;
-        private set => SetProperty(ref _pages, value);
+        private set
+        {
+            if (SetProperty(ref _pages, value))
+            {
+                // Opening the first document commonly keeps CurrentPage at 1,
+                // so its setter does not fire. The single-page presenter still
+                // needs to be told that CurrentPageItem changed from null to
+                // the newly-created first page.
+                OnPropertyChanged(nameof(CurrentPageItem));
+            }
+        }
     }
 
     public IReadOnlyList<int> Bookmarks
