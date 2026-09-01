@@ -8,6 +8,7 @@ public sealed class JsonReaderLibraryStore : IReaderLibraryStore, IDisposable
     private readonly string _path;
     private readonly JsonSerializerOptions _options;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private int _disposed;
 
     public JsonReaderLibraryStore(string? path = null)
     {
@@ -20,6 +21,7 @@ public sealed class JsonReaderLibraryStore : IReaderLibraryStore, IDisposable
 
     public async ValueTask<ReaderLibrary> LoadAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -51,6 +53,8 @@ public sealed class JsonReaderLibraryStore : IReaderLibraryStore, IDisposable
 
     public async ValueTask SaveAsync(ReaderLibrary library, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(library);
+        ThrowIfDisposed();
         await _gate.WaitAsync(cancellationToken);
         var temporaryPath = $"{_path}.tmp";
         try
@@ -70,11 +74,36 @@ public sealed class JsonReaderLibraryStore : IReaderLibraryStore, IDisposable
 
             File.Move(temporaryPath, _path, true);
         }
+        catch
+        {
+            TryDelete(temporaryPath);
+            throw;
+        }
         finally
         {
             _gate.Release();
         }
     }
 
-    public void Dispose() => _gate.Dispose();
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _gate.Dispose();
+        }
+    }
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+            // A stale temporary file is harmless and can be replaced on the next save.
+        }
+    }
 }

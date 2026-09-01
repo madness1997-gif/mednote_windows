@@ -24,9 +24,10 @@ public sealed class WindowsPdfEngine : IPdfEngine
     private sealed class WindowsPdfDocumentSession(string path, PdfDocument document) : IPdfDocumentSession
     {
         private const uint MaximumRenderEdge = 4_096;
+        private const int MaximumConcurrentRenders = 2;
         private readonly PdfDocument _document = document;
-        private readonly SemaphoreSlim _renderGate = new(2, 2);
-        private bool _disposed;
+        private readonly SemaphoreSlim _renderGate = new(MaximumConcurrentRenders, MaximumConcurrentRenders);
+        private int _disposed;
 
         public string Path { get; } = path;
 
@@ -48,6 +49,7 @@ public sealed class WindowsPdfEngine : IPdfEngine
             await _renderGate.WaitAsync(cancellationToken);
             try
             {
+                ThrowIfDisposed();
                 using var page = _document.GetPage(checked((uint)request.PageIndex));
                 var naturalRatio = page.Size.Height / Math.Max(1d, page.Size.Width);
                 var rawWidth = Math.Max(64d, request.PixelWidth);
@@ -82,11 +84,25 @@ public sealed class WindowsPdfEngine : IPdfEngine
             }
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
-            _disposed = true;
-            _renderGate.Dispose();
-            return ValueTask.CompletedTask;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            // Page controls cancel on unload, but native rendering may already
+            // be inside Windows.Data.Pdf. Drain both permits before releasing
+            // the session so no render can outlive its document owner.
+            for (var index = 0; index < MaximumConcurrentRenders; index++)
+            {
+                await _renderGate.WaitAsync();
+            }
+
+            // Do not dispose a SemaphoreSlim while older callers may still be
+            // queued on it. Return the permits so those callers can wake,
+            // observe the disposed flag, and exit without touching PDF state.
+            _renderGate.Release(MaximumConcurrentRenders);
         }
 
         private void ValidatePageIndex(int pageIndex)
@@ -97,6 +113,6 @@ public sealed class WindowsPdfEngine : IPdfEngine
             }
         }
 
-        private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+        private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 }

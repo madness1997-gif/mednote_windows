@@ -8,6 +8,7 @@ public sealed class ReaderPersistenceCoordinator : IAsyncDisposable
 {
     private readonly IReaderLibraryStore _store;
     private readonly object _sync = new();
+    private readonly HashSet<Task> _pendingSaves = [];
     private CancellationTokenSource? _saveDelayCancellation;
     private ReaderLibrary _library = new();
     private bool _disposed;
@@ -34,49 +35,69 @@ public sealed class ReaderPersistenceCoordinator : IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ReaderLibrary snapshot;
         CancellationToken token;
+        Task pendingSave;
         lock (_sync)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             _saveDelayCancellation?.Cancel();
             _saveDelayCancellation?.Dispose();
             _saveDelayCancellation = new CancellationTokenSource();
             token = _saveDelayCancellation.Token;
             snapshot = Upsert(document);
+            pendingSave = SaveAfterDelayAsync(snapshot, token, onFailure);
+            _pendingSaves.Add(pendingSave);
         }
 
-        _ = SaveAfterDelayAsync(snapshot, token, onFailure);
+        _ = RemoveWhenCompletedAsync(pendingSave);
     }
 
     public async ValueTask SaveNowAsync(ReaderDocumentRecord document, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ReaderLibrary snapshot;
+        Task[] pendingSaves;
         lock (_sync)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             _saveDelayCancellation?.Cancel();
             _saveDelayCancellation?.Dispose();
             _saveDelayCancellation = null;
             snapshot = Upsert(document);
+            pendingSaves = _pendingSaves.ToArray();
         }
 
+        await Task.WhenAll(pendingSaves).WaitAsync(cancellationToken);
         await _store.SaveAsync(snapshot, cancellationToken);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        Task[] pendingSaves;
+        lock (_sync)
         {
-            return ValueTask.CompletedTask;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _saveDelayCancellation?.Cancel();
+            _saveDelayCancellation?.Dispose();
+            _saveDelayCancellation = null;
+            pendingSaves = _pendingSaves.ToArray();
         }
 
-        _disposed = true;
-        _saveDelayCancellation?.Cancel();
-        _saveDelayCancellation?.Dispose();
-        if (_store is IDisposable disposableStore)
+        try
         {
-            disposableStore.Dispose();
+            await Task.WhenAll(pendingSaves);
         }
-
-        return ValueTask.CompletedTask;
+        finally
+        {
+            if (_store is IDisposable disposableStore)
+            {
+                disposableStore.Dispose();
+            }
+        }
     }
 
     private ReaderLibrary Upsert(ReaderDocumentRecord document)
@@ -105,7 +126,25 @@ public sealed class ReaderPersistenceCoordinator : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            onFailure?.Invoke(exception);
+            if (!Volatile.Read(ref _disposed))
+            {
+                onFailure?.Invoke(exception);
+            }
+        }
+    }
+
+    private async Task RemoveWhenCompletedAsync(Task pendingSave)
+    {
+        try
+        {
+            await pendingSave;
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _pendingSaves.Remove(pendingSave);
+            }
         }
     }
 }

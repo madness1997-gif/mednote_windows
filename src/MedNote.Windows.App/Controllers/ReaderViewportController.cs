@@ -164,11 +164,23 @@ public sealed class ReaderViewportController : IDisposable
         _disposed = true;
         _positionTimer.Stop();
         _positionTimer.Tick -= OnPositionTimerTick;
+        _pendingPosition = null;
         _singlePage.ViewChanged -= OnSingleViewChanged;
         _surface.SizeChanged -= OnSurfaceSizeChanged;
+        _surface.RemoveHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed));
+        _surface.RemoveHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved));
+        _surface.RemoveHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased));
+        _surface.RemoveHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(OnPointerReleased));
+        if (_isPanning)
+        {
+            _surface.ReleasePointerCaptures();
+            _isPanning = false;
+        }
+
         if (_continuousScrollViewer is not null && _continuousScrollHooked)
         {
             _continuousScrollViewer.ViewChanged -= OnContinuousViewChanged;
+            _continuousScrollHooked = false;
         }
     }
 

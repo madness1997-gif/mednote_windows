@@ -7,9 +7,8 @@ namespace MedNote.Windows.App.Controls;
 
 public sealed partial class PdfPagePresenter : UserControl
 {
-    private CancellationTokenSource? _loadCancellation;
     private PdfPageViewModel? _boundPage;
-    private bool _rendering;
+    private bool _renderLoopRunning;
     private bool _renderRequested;
 
     public PdfPagePresenter()
@@ -18,119 +17,103 @@ public sealed partial class PdfPagePresenter : UserControl
         DataContextChanged += OnDataContextChanged;
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (_boundPage is not null)
-        {
-            _boundPage.PropertyChanged -= OnPagePropertyChanged;
-            _boundPage.PropertyChanged += OnPagePropertyChanged;
-        }
-
-        await RenderAsync();
+        BindPage(DataContext as PdfPageViewModel);
+        RequestRender();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        _loadCancellation?.Cancel();
-        _loadCancellation?.Dispose();
-        _loadCancellation = null;
         _renderRequested = false;
+        BindPage(null);
+    }
+
+    private void OnDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        BindPage(args.NewValue as PdfPageViewModel);
+        if (IsLoaded)
+        {
+            RequestRender();
+        }
+    }
+
+    private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
+            or nameof(PdfPageViewModel.DisplayHeight))
+        {
+            RequestRender();
+        }
+    }
+
+    private void BindPage(PdfPageViewModel? page)
+    {
+        if (ReferenceEquals(_boundPage, page))
+        {
+            return;
+        }
+
         if (_boundPage is not null)
         {
             _boundPage.PropertyChanged -= OnPagePropertyChanged;
             _boundPage.Unpin();
         }
-    }
 
-    private async void OnDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
-    {
-        var nextPage = DataContext as PdfPageViewModel;
-        if (!ReferenceEquals(_boundPage, nextPage))
+        _boundPage = page;
+        if (_boundPage is not null)
         {
-            if (_boundPage is not null)
-            {
-                _boundPage.PropertyChanged -= OnPagePropertyChanged;
-                _boundPage.Unpin();
-            }
-
-            _boundPage = nextPage;
-            if (_boundPage is not null)
-            {
-                _boundPage.PropertyChanged += OnPagePropertyChanged;
-            }
-        }
-
-        if (IsLoaded)
-        {
-            await RenderAsync();
-        }
-    }
-
-    private async void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
-            or nameof(PdfPageViewModel.DisplayHeight))
-        {
-            await RenderAsync();
-        }
-    }
-
-    private async Task RenderAsync()
-    {
-        if (_rendering)
-        {
-            _renderRequested = true;
-            return;
-        }
-
-        var page = DataContext as PdfPageViewModel;
-        if (page is null)
-        {
-            return;
-        }
-
-        if (!ReferenceEquals(_boundPage, page))
-        {
-            if (_boundPage is not null)
-            {
-                _boundPage.PropertyChanged -= OnPagePropertyChanged;
-                _boundPage.Unpin();
-            }
-
-            _boundPage = page;
             _boundPage.PropertyChanged += OnPagePropertyChanged;
         }
+    }
 
-        _rendering = true;
+    private void RequestRender()
+    {
+        _renderRequested = true;
+        if (_renderLoopRunning)
+        {
+            return;
+        }
+
+        _ = RunRenderLoopAsync();
+    }
+
+    private async Task RunRenderLoopAsync()
+    {
+        _renderLoopRunning = true;
         try
         {
-            do
+            while (_renderRequested && IsLoaded)
             {
                 _renderRequested = false;
-                _loadCancellation?.Cancel();
-                _loadCancellation?.Dispose();
-                _loadCancellation = new CancellationTokenSource();
-                await page.PinAndRenderAsync(_loadCancellation.Token);
+                var page = _boundPage;
+                if (page is null)
+                {
+                    return;
+                }
+
+                await page.PinAndRenderAsync();
+                if (!ReferenceEquals(page, _boundPage))
+                {
+                    page.Unpin();
+                }
             }
-            while (_renderRequested && IsLoaded && ReferenceEquals(page, DataContext));
         }
         catch (OperationCanceledException)
         {
-            // The page was recycled before the render started.
+            // Recycling or a newer layout invalidated the current render.
         }
         catch (ObjectDisposedException)
         {
-            // Window shutdown can dispose the session before the final unload.
+            // The document session is shutting down.
         }
         finally
         {
-            _rendering = false;
-        }
-
-        if (_renderRequested && IsLoaded)
-        {
-            _renderRequested = false;
-            await RenderAsync();
+            _renderLoopRunning = false;
+            if (_renderRequested && IsLoaded)
+            {
+                RequestRender();
+            }
         }
     }
 }

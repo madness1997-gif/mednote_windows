@@ -7,6 +7,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     private readonly IPdfEngine _pdfEngine;
     private readonly ReaderPersistenceCoordinator _persistence;
     private readonly BitmapBudget<string> _bitmapBudget = new();
+    private readonly SemaphoreSlim _documentGate = new(1, 1);
     private IPdfDocumentSession? _session;
     private IReadOnlyList<PdfPageViewModel> _pages = Array.Empty<PdfPageViewModel>();
     private IReadOnlyList<int> _bookmarks = Array.Empty<int>();
@@ -184,71 +185,18 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public async Task OpenDocumentAsync(string path, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        IsBusy = true;
-        StatusText = "Đang mở PDF…";
-        IPdfDocumentSession? nextSession = null;
+        await _documentGate.WaitAsync(cancellationToken);
         try
         {
-            var fullPath = System.IO.Path.GetFullPath(path);
-            var info = new FileInfo(fullPath);
-            if (!info.Exists)
-            {
-                throw new FileNotFoundException("Không tìm thấy tệp PDF.", fullPath);
-            }
-
-            var lastModified = new DateTimeOffset(info.LastWriteTimeUtc).ToUnixTimeMilliseconds();
-            var documentId = DocumentIdentity.Create(info.Name, info.Length, lastModified);
-            nextSession = await _pdfEngine.OpenAsync(fullPath, cancellationToken);
-            var existing = _persistence.FindDocument(documentId);
-            var nextReader = (existing?.Reader ?? new ReaderState()).Normalize(nextSession.PageCount);
-            var nextPosition = (existing?.Position ?? new ReaderPosition { AnchorPage = nextReader.Page }).Normalize(nextSession.PageCount);
-
-            var oldSession = _session;
-            var oldPages = Pages;
-            var openedSession = nextSession ?? throw new InvalidOperationException("PDF engine returned no session.");
-            _session = openedSession;
-            nextSession = null;
-            _documentId = documentId;
-            _documentPath = fullPath;
-            _documentSize = info.Length;
-            _documentLastModified = lastModified;
-            _reader = nextReader;
-            _position = nextPosition;
-            DocumentName = info.Name;
-            PageCount = openedSession.PageCount;
-            CurrentPage = nextReader.Page;
-            Zoom = nextReader.Zoom;
-            FitMode = nextReader.FitMode;
-            ViewMode = nextReader.ViewMode;
-            Bookmarks = nextReader.Bookmarks.ToArray();
-            Pages = Enumerable.Range(0, PageCount)
-                .Select(index => new PdfPageViewModel(this, openedSession, _bitmapBudget, documentId, index))
-                .ToArray();
-            HasDocument = true;
-            RefreshAllPageLayouts();
-            StatusText = $"{PageCount:N0} trang";
-
-            foreach (var page in oldPages)
-            {
-                page.Dispose();
-            }
-
-            if (oldSession is not null)
-            {
-                await oldSession.DisposeAsync();
-            }
-
-            QueuePersist();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            IsBusy = true;
+            StatusText = "Đang mở PDF…";
+            await ReplaceDocumentSessionAsync(path, cancellationToken);
         }
         finally
         {
-            if (nextSession is not null)
-            {
-                await nextSession.DisposeAsync();
-            }
-
             IsBusy = false;
+            _documentGate.Release();
         }
     }
 
@@ -394,36 +342,45 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        await _documentGate.WaitAsync();
         try
         {
-            if (HasDocument)
+            if (_disposed)
             {
-                await PersistNowAsync();
+                return;
             }
-        }
-        catch
-        {
-            // State is also persisted after every interaction; shutdown stays unblocked.
-        }
 
-        _disposed = true;
-        foreach (var page in Pages)
-        {
-            page.Dispose();
-        }
+            _disposed = true;
+            try
+            {
+                if (HasDocument)
+                {
+                    await PersistNowAsync();
+                }
+            }
+            catch
+            {
+                // State is also persisted after every interaction; shutdown stays unblocked.
+            }
 
-        _bitmapBudget.Clear();
-        if (_session is not null)
-        {
-            await _session.DisposeAsync();
-        }
+            foreach (var page in Pages)
+            {
+                page.Dispose();
+            }
 
-        await _persistence.DisposeAsync();
+            _bitmapBudget.Clear();
+            if (_session is not null)
+            {
+                await _session.DisposeAsync();
+                _session = null;
+            }
+
+            await _persistence.DisposeAsync();
+        }
+        finally
+        {
+            _documentGate.Release();
+        }
     }
 
     private void RefreshAllPageLayouts()
@@ -431,6 +388,71 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         foreach (var page in Pages)
         {
             RefreshPageLayout(page);
+        }
+    }
+
+    private async Task ReplaceDocumentSessionAsync(string path, CancellationToken cancellationToken)
+    {
+        IPdfDocumentSession? nextSession = null;
+        try
+        {
+            var fullPath = System.IO.Path.GetFullPath(path);
+            var info = new FileInfo(fullPath);
+            if (!info.Exists)
+            {
+                throw new FileNotFoundException("Không tìm thấy tệp PDF.", fullPath);
+            }
+
+            var lastModified = new DateTimeOffset(info.LastWriteTimeUtc).ToUnixTimeMilliseconds();
+            var documentId = DocumentIdentity.Create(info.Name, info.Length, lastModified);
+            nextSession = await _pdfEngine.OpenAsync(fullPath, cancellationToken);
+            var existing = _persistence.FindDocument(documentId);
+            var nextReader = (existing?.Reader ?? new ReaderState()).Normalize(nextSession.PageCount);
+            var nextPosition = (existing?.Position ?? new ReaderPosition { AnchorPage = nextReader.Page }).Normalize(nextSession.PageCount);
+
+            var oldSession = _session;
+            var oldPages = Pages;
+            var openedSession = nextSession;
+            _session = openedSession;
+            nextSession = null;
+            _documentId = documentId;
+            _documentPath = fullPath;
+            _documentSize = info.Length;
+            _documentLastModified = lastModified;
+            _reader = nextReader;
+            _position = nextPosition;
+            DocumentName = info.Name;
+            PageCount = openedSession.PageCount;
+            CurrentPage = nextReader.Page;
+            Zoom = nextReader.Zoom;
+            FitMode = nextReader.FitMode;
+            ViewMode = nextReader.ViewMode;
+            Bookmarks = nextReader.Bookmarks.ToArray();
+            Pages = Enumerable.Range(0, PageCount)
+                .Select(index => new PdfPageViewModel(this, openedSession, _bitmapBudget, documentId, index))
+                .ToArray();
+            HasDocument = true;
+            RefreshAllPageLayouts();
+            StatusText = $"{PageCount:N0} trang";
+
+            foreach (var page in oldPages)
+            {
+                page.Dispose();
+            }
+
+            if (oldSession is not null)
+            {
+                await oldSession.DisposeAsync();
+            }
+
+            QueuePersist();
+        }
+        finally
+        {
+            if (nextSession is not null)
+            {
+                await nextSession.DisposeAsync();
+            }
         }
     }
 
