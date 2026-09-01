@@ -59,7 +59,7 @@ public sealed class WindowsPdfEngine : IPdfEngine
                 {
                     DestinationWidth = width,
                     DestinationHeight = height,
-                    BackgroundColor = Colors.White,
+                    BackgroundColor = Color.FromArgb(255, 255, 255, 255),
                 };
 
                 using var output = new InMemoryRandomAccessStream();
