@@ -41,6 +41,15 @@ jobs:
           -c Release -r win-x64 --self-contained true -p:Platform=x64
           -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false
           -o artifacts/MedNote-Reader-Windows
+      - name: Smoke-test packaged app startup
+        shell: pwsh
+        run: |
+          $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) {
+            throw "MedNote.Reader.exe exited during startup with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id -Force
       - name: Verify native artifact boundary
         shell: pwsh
         run: |
