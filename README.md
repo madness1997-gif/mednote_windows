@@ -18,6 +18,12 @@ The first vertical slice already contains:
 - a 192 MB LRU bitmap budget and cancellation when pages leave the viewport;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
 
+The M2 foundation now also contains renderer-independent contracts for PDF
+outline destinations, text extraction rectangles, cancellable search, and a
+bounded 32 MB LRU text cache. The current `Windows.Data.Pdf` adapter still only
+renders pages; the production PDFium adapter will implement these capabilities
+without changing the Reader state or WinUI navigation code.
+
 ## Architecture
 
 ```text
@@ -32,6 +38,8 @@ MedNote.Core
 `MedNote.Core` has no Windows UI dependency. PDF rendering is behind `IPdfEngine`/`IPdfDocumentSession`, so the current Windows renderer can be replaced by PDFium without changing navigation, persistence, or view-model contracts.
 
 Read [architecture.md](docs/architecture.md), [web-compatibility.md](docs/web-compatibility.md), and [roadmap.md](docs/roadmap.md) before expanding the app.
+The PDFium selection and threading boundary are recorded in
+[ADR 0001](docs/decisions/0001-pdfium-backend.md).
 
 ## Build
 

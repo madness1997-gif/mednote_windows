@@ -14,10 +14,13 @@
 
 ## M2 — Production PDFium backend
 
+- [x] select PDFiumCore raw bindings and document the native boundary;
+- [x] add renderer-independent outline/text/destination contracts;
+- [x] add cancellable page search with a bounded 32 MB LRU text cache;
 - [ ] replace the milestone renderer behind `IPdfEngine`;
 - [ ] outline and destination resolution;
 - [ ] text layer, selection, copy, and English–Vietnamese dictionary action;
-- [ ] indexed search with cancellation and a bounded text cache;
+- [ ] connect PDFium text extraction, result rectangles, and incremental indexing;
 - [ ] thumbnail virtualization;
 - [ ] rotation-aware render/layout;
 - [ ] encrypted/password PDF flow;
