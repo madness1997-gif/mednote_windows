@@ -24,4 +24,22 @@
   <ItemGroup>
     <ProjectReference Include="..\MedNote.Core\MedNote.Core.csproj" />
   </ItemGroup>
+
+  <!--
+    Unpackaged WinUI publish can omit the app PRI/XBF payload even though the
+    normal build output contains it. Application.LoadComponent then fails at
+    startup. Keep this explicit copy until the Windows App SDK publish target
+    reliably carries these resources into PublishDir.
+  -->
+  <Target Name="CopyWinUiXamlResourcesToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_WinUiXamlResource Include="$(OutputPath)**\*.xbf" />
+      <_WinUiXamlResource Include="$(OutputPath)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_WinUiXamlResource)"
+      DestinationFiles="@(_WinUiXamlResource->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="'@(_WinUiXamlResource)' != ''" />
+  </Target>
 </Project>
