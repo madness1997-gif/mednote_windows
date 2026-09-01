@@ -46,6 +46,16 @@ jobs:
         run: |
           $exe = Get-ChildItem artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -ErrorAction Stop
           if (-not $exe) { throw "MedNote.Reader.exe was not published" }
+
+          $webReferences = Get-ChildItem src -Recurse -File -Include *.cs,*.xaml,*.csproj |
+            Select-String -Pattern 'WebView2|Microsoft\.Web\.WebView2'
+          if ($webReferences) { throw "WebView2 reference found in native source: $($webReferences.Path -join ', ')" }
+
+          # Windows App SDK publishes this optional loader even when WebView2 is unused.
+          # Remove it so the distributed reader contains no dormant web runtime bridge.
+          Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File -Filter WebView2Loader.dll |
+            Remove-Item -Force
+
           $forbidden = Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File |
             Where-Object { $_.Name -match 'electron|webview2loader|chrome|chromium' }
           if ($forbidden) { throw "Web runtime leaked into native artifact: $($forbidden.Name -join ', ')" }
