@@ -1,4 +1,5 @@
 using MedNote.Core;
+using Xunit;
 
 namespace MedNote.Core.Tests;
 
