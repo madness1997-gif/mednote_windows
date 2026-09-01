@@ -1,0 +1,58 @@
+name: Build native MedNote Reader
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore core tests
+        run: dotnet restore tests/MedNote.Core.Tests/MedNote.Core.Tests.csproj
+      - name: Test core contracts and performance algorithms
+        run: dotnet test tests/MedNote.Core.Tests/MedNote.Core.Tests.csproj -c Release --no-restore
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore Windows solution
+        run: dotnet restore MedNote.Windows.sln -p:Platform=x64
+      - name: Test native core
+        run: dotnet test tests/MedNote.Core.Tests/MedNote.Core.Tests.csproj -c Release --no-restore
+      - name: Build WinUI application
+        run: dotnet build src/MedNote.Windows.App/MedNote.Windows.App.csproj -c Release -p:Platform=x64 --no-restore
+      - name: Publish self-contained x64 folder
+        run: >-
+          dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj
+          -c Release -r win-x64 --self-contained true -p:Platform=x64
+          -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false
+          -o artifacts/MedNote-Reader-Windows
+      - name: Verify native artifact boundary
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem artifacts/MedNote-Reader-Windows/MedNote.Reader.exe -ErrorAction Stop
+          if (-not $exe) { throw "MedNote.Reader.exe was not published" }
+          $forbidden = Get-ChildItem artifacts/MedNote-Reader-Windows -Recurse -File |
+            Where-Object { $_.Name -match 'electron|webview2loader|chrome|chromium' }
+          if ($forbidden) { throw "Web runtime leaked into native artifact: $($forbidden.Name -join ', ')" }
+          Compress-Archive -Path artifacts/MedNote-Reader-Windows/* -DestinationPath artifacts/MedNote-Reader-Windows-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MedNote-Reader-Native-Windows-x64
+          path: artifacts/MedNote-Reader-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30

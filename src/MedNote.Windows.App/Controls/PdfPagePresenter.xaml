@@ -1,0 +1,53 @@
+<UserControl
+    x:Class="MedNote.Windows.App.Controls.PdfPagePresenter"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    HorizontalAlignment="Center"
+    Loaded="OnLoaded"
+    SizeChanged="OnSizeChanged"
+    Unloaded="OnUnloaded">
+    <Grid>
+        <Border
+            Width="{Binding DisplayWidth}"
+            Height="{Binding DisplayHeight}"
+            Background="White"
+            BorderBrush="#26000000"
+            BorderThickness="1"
+            CornerRadius="2">
+            <Grid>
+                <Image
+                    Source="{Binding Bitmap}"
+                    Stretch="Fill"
+                    AutomationProperties.Name="Trang PDF" />
+                <ProgressRing
+                    Width="34"
+                    Height="34"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsActive="{Binding IsRendering}" />
+                <TextBlock
+                    MaxWidth="420"
+                    Margin="32"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="#FFB42318"
+                    Opacity="{Binding ErrorOpacity}"
+                    Text="{Binding Error}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </Grid>
+        </Border>
+        <Border
+            Margin="0,0,8,8"
+            Padding="7,3"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Background="#B0000000"
+            CornerRadius="4">
+            <TextBlock
+                FontSize="11"
+                Foreground="White"
+                Text="{Binding Number}" />
+        </Border>
+    </Grid>
+</UserControl>
