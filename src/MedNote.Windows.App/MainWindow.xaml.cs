@@ -4,7 +4,6 @@ using MedNote.Windows.App.Controllers;
 using MedNote.Windows.App.Infrastructure;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Input;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,6 +15,7 @@ using Windows.Storage.Pickers;
 using Windows.System;
 using Windows.UI.Core;
 using WinRT.Interop;
+using DispatcherQueueTimer = Microsoft.UI.Dispatching.DispatcherQueueTimer;
 
 namespace MedNote.Windows.App;
 
