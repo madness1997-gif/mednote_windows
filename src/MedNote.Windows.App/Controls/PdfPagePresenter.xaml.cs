@@ -3,8 +3,14 @@ using MedNote.Core;
 using MedNote.Windows.App.Infrastructure;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.Graphics.Canvas.UI.Xaml;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.System;
 
 namespace MedNote.Windows.App.Controls;
 
@@ -15,6 +21,13 @@ public sealed partial class PdfPagePresenter : UserControl
     private bool _renderRequested;
     private int _surfaceRefreshQueued;
     private CanvasImageSource? _direct2DSurface;
+    private CancellationTokenSource? _selectionCancellation;
+    private PdfPagePoint _pendingSelectionPoint;
+    private int? _selectionAnchorIndex;
+    private long _selectionGeneration;
+    private bool _selectionUpdateRequested;
+    private bool _selectionUpdateRunning;
+    private bool _isSelecting;
 
     public PdfPagePresenter()
     {
@@ -28,6 +41,7 @@ public sealed partial class PdfPagePresenter : UserControl
         Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost += OnSurfaceContentsLost;
         BindPage(DataContext as PdfPageViewModel);
         PresentSurface(_boundPage?.Surface);
+        DrawSelection();
         RequestRender();
     }
 
@@ -36,7 +50,9 @@ public sealed partial class PdfPagePresenter : UserControl
         Direct2DPageSurfaceFactory.SurfacesInvalidated -= OnDirect2DSurfacesInvalidated;
         Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost -= OnSurfaceContentsLost;
         _renderRequested = false;
+        CancelSelectionInteraction();
         ClearDirect2DSurface();
+        SelectionCanvas.Children.Clear();
         BindPage(null);
     }
 
@@ -46,6 +62,7 @@ public sealed partial class PdfPagePresenter : UserControl
         if (IsLoaded)
         {
             PresentSurface(_boundPage?.Surface);
+            DrawSelection();
             RequestRender();
         }
     }
@@ -65,7 +82,12 @@ public sealed partial class PdfPagePresenter : UserControl
             or nameof(PdfPageViewModel.DisplayHeight)
             or nameof(PdfPageViewModel.Rotation))
         {
+            DrawSelection();
             RequestRender();
+        }
+        else if (e.PropertyName == nameof(PdfPageViewModel.Selection))
+        {
+            DrawSelection();
         }
     }
 
@@ -82,6 +104,7 @@ public sealed partial class PdfPagePresenter : UserControl
             _boundPage.Unpin();
         }
 
+        CancelSelectionInteraction();
         _boundPage = page;
         if (_boundPage is not null)
         {
@@ -91,6 +114,191 @@ public sealed partial class PdfPagePresenter : UserControl
         {
             ClearDirect2DSurface();
         }
+    }
+
+    private async void OnPointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var page = _boundPage;
+        var point = e.GetCurrentPoint(PageInteractionLayer);
+        if (page is null || !page.IsTextSelectionEnabled || !point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        CancelSelectionInteraction();
+        _selectionCancellation = new CancellationTokenSource();
+        var generation = ++_selectionGeneration;
+        _isSelecting = true;
+        page.ClearTextSelection();
+        PageInteractionLayer.CapturePointer(e.Pointer);
+        e.Handled = true;
+
+        try
+        {
+            var index = await page.GetTextIndexAtDisplayPointAsync(
+                new PdfPagePoint(point.Position.X, point.Position.Y),
+                cancellationToken: _selectionCancellation.Token);
+            if (generation != _selectionGeneration || !ReferenceEquals(page, _boundPage) || index is null)
+            {
+                return;
+            }
+
+            _selectionAnchorIndex = index;
+            await page.SelectTextBetweenAsync(index.Value, index.Value, _selectionCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // A recycled page or newer pointer gesture superseded this one.
+        }
+    }
+
+    private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isSelecting || _selectionAnchorIndex is null)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(PageInteractionLayer);
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        QueueSelectionUpdate(new PdfPagePoint(point.Position.X, point.Position.Y));
+        e.Handled = true;
+    }
+
+    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isSelecting)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(PageInteractionLayer);
+        QueueSelectionUpdate(new PdfPagePoint(point.Position.X, point.Position.Y));
+        _isSelecting = false;
+        PageInteractionLayer.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e) => _isSelecting = false;
+
+    private void QueueSelectionUpdate(PdfPagePoint point)
+    {
+        _pendingSelectionPoint = point;
+        _selectionUpdateRequested = true;
+        if (!_selectionUpdateRunning)
+        {
+            _ = RunSelectionUpdateLoopAsync();
+        }
+    }
+
+    private async Task RunSelectionUpdateLoopAsync()
+    {
+        _selectionUpdateRunning = true;
+        var generation = _selectionGeneration;
+        try
+        {
+            while (_selectionUpdateRequested && generation == _selectionGeneration)
+            {
+                _selectionUpdateRequested = false;
+                var page = _boundPage;
+                var anchorIndex = _selectionAnchorIndex;
+                var cancellationToken = _selectionCancellation?.Token ?? CancellationToken.None;
+                if (page is null || anchorIndex is null)
+                {
+                    return;
+                }
+
+                var focusIndex = await page.GetTextIndexAtDisplayPointAsync(
+                    _pendingSelectionPoint,
+                    cancellationToken: cancellationToken);
+                if (focusIndex is not null
+                    && generation == _selectionGeneration
+                    && ReferenceEquals(page, _boundPage))
+                {
+                    await page.SelectTextBetweenAsync(anchorIndex.Value, focusIndex.Value, cancellationToken);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer selection gesture owns the overlay now.
+        }
+        finally
+        {
+            _selectionUpdateRunning = false;
+            if (_selectionUpdateRequested && IsLoaded)
+            {
+                _ = RunSelectionUpdateLoopAsync();
+            }
+        }
+    }
+
+    private void DrawSelection()
+    {
+        SelectionCanvas.Children.Clear();
+        var page = _boundPage;
+        if (page is null)
+        {
+            return;
+        }
+
+        foreach (var bounds in page.GetDisplaySelectionBounds())
+        {
+            var highlight = new Rectangle
+            {
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Fill = new SolidColorBrush(ColorHelper.FromArgb(82, 48, 155, 190)),
+                IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(highlight, bounds.Left);
+            Canvas.SetTop(highlight, bounds.Top);
+            SelectionCanvas.Children.Add(highlight);
+        }
+    }
+
+    private void OnCopySelectionClicked(object sender, RoutedEventArgs e)
+    {
+        var text = _boundPage?.Selection?.Text;
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(text);
+        Clipboard.SetContent(package);
+        Clipboard.Flush();
+    }
+
+    private async void OnDictionarySelectionClicked(object sender, RoutedEventArgs e)
+    {
+        var text = _boundPage?.Selection?.Text.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        const int maximumLookupLength = 512;
+        text = text[..Math.Min(text.Length, maximumLookupLength)];
+        var uri = new Uri(
+            $"https://translate.google.com/?sl=en&tl=vi&text={Uri.EscapeDataString(text)}&op=translate");
+        await Launcher.LaunchUriAsync(uri);
+    }
+
+    private void CancelSelectionInteraction()
+    {
+        _selectionCancellation?.Cancel();
+        _selectionCancellation?.Dispose();
+        _selectionCancellation = null;
+        _selectionAnchorIndex = null;
+        _selectionUpdateRequested = false;
+        _isSelecting = false;
+        _selectionGeneration++;
     }
 
     private void RequestRender()

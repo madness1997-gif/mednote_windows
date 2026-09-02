@@ -4,6 +4,7 @@ using MedNote.Windows.App.Controllers;
 using MedNote.Windows.App.Infrastructure;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Input;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,7 +22,9 @@ namespace MedNote.Windows.App;
 public sealed partial class MainWindow : Window
 {
     private readonly ReaderViewportController _viewport;
+    private readonly DispatcherQueueTimer _searchTimer;
     private readonly string? _startupDocumentPath;
+    private string _pendingSearchQuery = string.Empty;
     private bool _updatingControls;
     private bool _initialized;
 
@@ -38,6 +41,10 @@ public sealed partial class MainWindow : Window
             ContinuousPagesList,
             SinglePageScrollViewer,
             DispatcherQueue);
+        _searchTimer = DispatcherQueue.CreateTimer();
+        _searchTimer.Interval = TimeSpan.FromMilliseconds(275);
+        _searchTimer.IsRepeating = false;
+        _searchTimer.Tick += OnSearchTimerTick;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += OnWindowClosed;
         ResizeWindow();
@@ -99,6 +106,13 @@ public sealed partial class MainWindow : Window
             try
             {
                 await ViewModel.OpenDocumentAsync(path, password);
+                if (SearchTextBox.Text.Length > 0)
+                {
+                    SearchTextBox.Text = string.Empty;
+                    _pendingSearchQuery = string.Empty;
+                    _searchTimer.Stop();
+                }
+
                 if (RenderProbe.StartupRotation is { } startupRotation)
                 {
                     ViewModel.SetRotation(startupRotation);
@@ -224,7 +238,7 @@ public sealed partial class MainWindow : Window
         await _viewport.RestoreSavedPositionAsync();
     }
 
-    private void OnPanToolChecked(object sender, RoutedEventArgs e)
+    private void OnPanToolClicked(object sender, RoutedEventArgs e)
     {
         if (_updatingControls)
         {
@@ -234,6 +248,21 @@ public sealed partial class MainWindow : Window
         ViewModel.SetActiveTool(PdfTool.Pan);
         _updatingControls = true;
         PanToolButton.IsChecked = true;
+        SelectToolButton.IsChecked = false;
+        _updatingControls = false;
+    }
+
+    private void OnSelectToolClicked(object sender, RoutedEventArgs e)
+    {
+        if (_updatingControls)
+        {
+            return;
+        }
+
+        ViewModel.SetActiveTool(PdfTool.Select);
+        _updatingControls = true;
+        PanToolButton.IsChecked = false;
+        SelectToolButton.IsChecked = true;
         _updatingControls = false;
     }
 
@@ -257,6 +286,41 @@ public sealed partial class MainWindow : Window
         {
             NavigateToPage(page);
         }
+    }
+
+    private async void OnSearchResultClicked(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not PdfSearchMatch match
+            || match.PageIndex < 0
+            || match.PageIndex >= ViewModel.Pages.Count)
+        {
+            return;
+        }
+
+        NavigateToPage(match.PageNumber, true);
+        try
+        {
+            await ViewModel.Pages[match.PageIndex].SelectTextRangeAsync(
+                match.StartIndex,
+                match.Length);
+        }
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Không chọn được kết quả", exception.Message);
+        }
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        _pendingSearchQuery = SearchTextBox.Text;
+        _searchTimer.Stop();
+        _searchTimer.Start();
+    }
+
+    private async void OnSearchTimerTick(DispatcherQueueTimer sender, object args)
+    {
+        sender.Stop();
+        await ViewModel.SearchAsync(_pendingSearchQuery);
     }
 
     private void OnOutlineTabChecked(object sender, RoutedEventArgs e) => SelectSidebarTab(OutlinePanel);
@@ -330,6 +394,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+        {
+            return;
+        }
+
+        if (controlDown && e.Key == VirtualKey.C && CopySelectedText())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key is VirtualKey.PageDown or VirtualKey.Right)
         {
             NavigateToPage(ViewModel.CurrentPage + 1);
@@ -376,6 +451,9 @@ public sealed partial class MainWindow : Window
             case nameof(ReaderViewModel.ViewMode):
                 ApplyViewMode();
                 break;
+            case nameof(ReaderViewModel.ActiveTool):
+                ApplyActiveTool();
+                break;
         }
     }
 
@@ -383,6 +461,7 @@ public sealed partial class MainWindow : Window
     {
         ApplyFitMode();
         ApplyViewMode();
+        ApplyActiveTool();
         UpdatePageControls();
         UpdateBookmarkButton();
         BusyOverlay.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
@@ -418,6 +497,28 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void ApplyActiveTool()
+    {
+        _updatingControls = true;
+        PanToolButton.IsChecked = ViewModel.ActiveTool == PdfTool.Pan;
+        SelectToolButton.IsChecked = ViewModel.ActiveTool == PdfTool.Select;
+        _updatingControls = false;
+    }
+
+    private bool CopySelectedText()
+    {
+        if (!ViewModel.HasTextSelection)
+        {
+            return false;
+        }
+
+        var package = new DataPackage();
+        package.SetText(ViewModel.SelectedText);
+        Clipboard.SetContent(package);
+        Clipboard.Flush();
+        return true;
+    }
+
     private void UpdatePageControls()
     {
         _updatingControls = true;
@@ -435,6 +536,8 @@ public sealed partial class MainWindow : Window
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _searchTimer.Stop();
+        _searchTimer.Tick -= OnSearchTimerTick;
         _viewport.CaptureCurrentPosition();
         _viewport.Dispose();
         await ViewModel.DisposeAsync();

@@ -35,8 +35,8 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 ### MedNote.Windows.App
 
 - Owns WinUI views and user interaction.
-- Implements `IPdfEngine`, `IPdfOutlineProvider`, and `IPdfTextProvider` with
-  PDFiumCore/PDFium.
+- Implements `IPdfEngine`, `IPdfOutlineProvider`, `IPdfTextProvider`, and
+  `IPdfTextHitTestProvider` with PDFiumCore/PDFium.
 - Virtualizes page controls with `ListView`/`ItemsStackPanel`.
 - Uploads tightly packed PDFium BGRA bytes into Win2D `CanvasBitmap`, then draws
   them onto a Direct2D-backed `CanvasImageSource` for realized pages. No PNG
@@ -61,9 +61,17 @@ M2 adds optional capabilities instead of enlarging the base rendering contract:
 
 - `IPdfOutlineProvider` returns normalized outline nodes and zero-based destinations;
 - `IPdfTextProvider` returns page text and rectangles for a character range;
-- `PdfTextSearchService` scans providers with cancellation and a bounded LRU cache;
+- `IPdfTextHitTestProvider` maps pointer locations to extracted-text indexes;
+- `PdfTextSearchService` incrementally scans pages with cancellation, streamed
+  results, and a bounded LRU cache;
 - UI code detects capabilities on the active session and remains usable when a
   renderer only supports page images.
+
+Reader selection geometry stays in page coordinates until presentation. The
+UI applies the persisted Reader rotation only when mapping pointer locations or
+drawing selection rectangles. Sidebar thumbnails use the same cancellable
+render scheduler and bitmap budget as full pages, but their presenters pin work
+only while `ListView` containers are realized.
 
 The PDFium adapter routes every native call through one owned dispatcher. A
 core render scheduler admits one page raster at a time and cancels queued work

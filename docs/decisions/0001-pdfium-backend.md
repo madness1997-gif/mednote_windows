@@ -55,9 +55,9 @@ binding later therefore affects only the adapter project.
 - The serialized dispatcher limits native parallelism; the UI still remains
   responsive through async queues, cancellation, render prioritization, and the
   bitmap/text caches.
-- Search currently performs a cancellable sequential scan. Incremental indexing
-  is added only after real PDFium text extraction is measured on 2,000–3,000 page
-  documents.
+- Search performs a cancellable sequential scan, publishes each match and page
+  progress immediately, and reuses a bounded text cache across queries. A new
+  query cancels the previous scan before the document session can be replaced.
 
 ## Primary references
 

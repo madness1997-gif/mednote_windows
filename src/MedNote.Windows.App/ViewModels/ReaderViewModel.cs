@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using MedNote.Core;
 
 namespace MedNote.Windows.App.ViewModels;
@@ -9,9 +10,17 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     private readonly BitmapBudget<string> _bitmapBudget = new();
     private readonly PdfRenderScheduler _renderScheduler = new();
     private readonly SemaphoreSlim _documentGate = new(1, 1);
+    private readonly SemaphoreSlim _searchGate = new(1, 1);
     private IPdfDocumentSession? _session;
+    private PdfTextSearchService? _textSearch;
+    private CancellationTokenSource? _searchCancellation;
+    private Task _searchTask = Task.CompletedTask;
+    private long _searchGeneration;
     private IReadOnlyList<PdfPageViewModel> _pages = Array.Empty<PdfPageViewModel>();
     private IReadOnlyList<int> _bookmarks = Array.Empty<int>();
+    private readonly ObservableCollection<PdfSearchMatch> _searchResults = [];
+    private PdfPageViewModel? _selectionPage;
+    private PdfTextSelection? _selectedTextSelection;
     private ReaderState _reader = new();
     private ReaderPosition _position = new();
     private string? _documentId;
@@ -22,6 +31,8 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     private string _statusText = "Mở một tệp PDF để bắt đầu";
     private bool _isBusy;
     private bool _hasDocument;
+    private bool _isSearching;
+    private string _searchStatus = "Nhập từ khóa để lập chỉ mục từng trang.";
     private int _currentPage = 1;
     private int _pageCount;
     private double _zoom = 1d;
@@ -61,6 +72,37 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         get => _bookmarks;
         private set => SetProperty(ref _bookmarks, value);
     }
+
+    public ObservableCollection<PdfSearchMatch> SearchResults => _searchResults;
+
+    public string SearchStatus
+    {
+        get => _searchStatus;
+        private set => SetProperty(ref _searchStatus, value);
+    }
+
+    public bool IsSearching
+    {
+        get => _isSearching;
+        private set => SetProperty(ref _isSearching, value);
+    }
+
+    public PdfTextSelection? SelectedTextSelection
+    {
+        get => _selectedTextSelection;
+        private set
+        {
+            if (SetProperty(ref _selectedTextSelection, value))
+            {
+                OnPropertyChanged(nameof(HasTextSelection));
+                OnPropertyChanged(nameof(SelectedText));
+            }
+        }
+    }
+
+    public bool HasTextSelection => SelectedTextSelection is { Length: > 0 };
+
+    public string SelectedText => SelectedTextSelection?.Text ?? string.Empty;
 
     public string DocumentName
     {
@@ -306,6 +348,48 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         ActiveTool = tool;
     }
 
+    public async Task SearchAsync(string query)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        Task searchTask;
+        await _searchGate.WaitAsync();
+        try
+        {
+            await CancelSearchCoreAsync(clearResults: true);
+            var cancellation = new CancellationTokenSource();
+            _searchCancellation = cancellation;
+            var generation = ++_searchGeneration;
+            _searchTask = RunSearchAsync(query, generation, cancellation.Token);
+            searchTask = _searchTask;
+        }
+        finally
+        {
+            _searchGate.Release();
+        }
+
+        await searchTask;
+    }
+
+    public void ClearTextSelection()
+    {
+        _selectionPage?.SetSelectionFromOwner(null);
+        _selectionPage = null;
+        SelectedTextSelection = null;
+    }
+
+    internal void SetTextSelection(PdfPageViewModel page, PdfTextSelection? selection)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        if (!ReferenceEquals(_selectionPage, page))
+        {
+            _selectionPage?.SetSelectionFromOwner(null);
+        }
+
+        _selectionPage = selection is null ? null : page;
+        page.SetSelectionFromOwner(selection);
+        SelectedTextSelection = selection;
+    }
+
     public bool ToggleBookmark()
     {
         if (!HasDocument)
@@ -401,6 +485,8 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
             }
 
             _disposed = true;
+            await CancelSearchAsync(clearResults: true);
+            ClearTextSelection();
             try
             {
                 if (HasDocument)
@@ -477,6 +563,9 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
                 throw new FileNotFoundException("Không tìm thấy tệp PDF.", fullPath);
             }
 
+            await CancelSearchAsync(clearResults: true);
+            ClearTextSelection();
+
             var lastModified = new DateTimeOffset(info.LastWriteTimeUtc).ToUnixTimeMilliseconds();
             var documentId = DocumentIdentity.Create(info.Name, info.Length, lastModified);
             nextSession = await _pdfEngine.OpenAsync(fullPath, password, cancellationToken);
@@ -488,6 +577,9 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
             var oldPages = Pages;
             var openedSession = nextSession;
             _session = openedSession;
+            _textSearch = openedSession is IPdfTextProvider textProvider
+                ? new PdfTextSearchService(textProvider)
+                : null;
             nextSession = null;
             _documentId = documentId;
             _documentPath = fullPath;
@@ -523,6 +615,9 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
                 .ToArray();
             HasDocument = true;
             StatusText = $"{PageCount:N0} trang";
+            SearchStatus = _textSearch is null
+                ? "PDF này không cung cấp lớp văn bản để tìm kiếm."
+                : "Nhập từ khóa để lập chỉ mục từng trang.";
 
             foreach (var page in oldPages)
             {
@@ -541,6 +636,121 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
             if (nextSession is not null)
             {
                 await nextSession.DisposeAsync();
+            }
+        }
+    }
+
+    private async Task RunSearchAsync(string query, long generation, CancellationToken cancellationToken)
+    {
+        query = query?.Trim() ?? string.Empty;
+        if (query.Length == 0)
+        {
+            if (generation == _searchGeneration)
+            {
+                SearchStatus = "Nhập từ khóa để lập chỉ mục từng trang.";
+                IsSearching = false;
+            }
+
+            return;
+        }
+
+        var search = _textSearch;
+        if (search is null)
+        {
+            if (generation == _searchGeneration)
+            {
+                SearchStatus = "PDF này không cung cấp lớp văn bản để tìm kiếm.";
+            }
+
+            return;
+        }
+
+        IsSearching = true;
+        SearchStatus = $"Đang lập chỉ mục 0 / {PageCount:N0} trang…";
+        var progress = new Progress<PdfSearchProgress>(value =>
+        {
+            if (generation == _searchGeneration)
+            {
+                SearchStatus = $"Đã lập chỉ mục {value.ScannedPages:N0} / {value.TotalPages:N0} trang • {value.MatchCount:N0} kết quả";
+            }
+        });
+
+        try
+        {
+            await foreach (var match in search.SearchAsync(
+                query,
+                new PdfSearchOptions { MaxResults = 500 },
+                progress,
+                cancellationToken))
+            {
+                if (generation != _searchGeneration)
+                {
+                    return;
+                }
+
+                SearchResults.Add(match);
+            }
+
+            if (generation == _searchGeneration && SearchResults.Count == 0)
+            {
+                SearchStatus = $"Đã lập chỉ mục {PageCount:N0} trang • không có kết quả";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Typing a new query or opening another document supersedes this scan.
+        }
+        catch (Exception exception)
+        {
+            if (generation == _searchGeneration)
+            {
+                SearchStatus = $"Không tìm kiếm được: {exception.Message}";
+            }
+        }
+        finally
+        {
+            if (generation == _searchGeneration)
+            {
+                IsSearching = false;
+            }
+        }
+    }
+
+    private async Task CancelSearchAsync(bool clearResults)
+    {
+        await _searchGate.WaitAsync();
+        try
+        {
+            await CancelSearchCoreAsync(clearResults);
+        }
+        finally
+        {
+            _searchGate.Release();
+        }
+    }
+
+    private async Task CancelSearchCoreAsync(bool clearResults)
+    {
+        _searchGeneration++;
+        var cancellation = _searchCancellation;
+        _searchCancellation = null;
+        cancellation?.Cancel();
+        try
+        {
+            await _searchTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when a document or query is replaced.
+        }
+        finally
+        {
+            cancellation?.Dispose();
+            _searchTask = Task.CompletedTask;
+            IsSearching = false;
+            if (clearResults)
+            {
+                SearchResults.Clear();
             }
         }
     }

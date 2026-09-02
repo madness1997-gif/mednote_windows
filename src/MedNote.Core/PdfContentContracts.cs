@@ -63,3 +63,28 @@ public interface IPdfTextProvider
         int length,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Optional hit-testing capability for a PDF text provider. Points and
+/// tolerances use the unscaled, top-origin page coordinate system returned by
+/// <see cref="IPdfDocumentSession.PageMetrics"/>.
+/// </summary>
+public interface IPdfTextHitTestProvider
+{
+    ValueTask<int?> GetTextIndexAtPointAsync(
+        int pageIndex,
+        PdfPagePoint point,
+        double horizontalTolerance,
+        double verticalTolerance,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record PdfTextSelection(
+    int PageIndex,
+    int StartIndex,
+    int Length,
+    string Text,
+    IReadOnlyList<PdfPageRect> Bounds)
+{
+    public int EndIndex => checked(StartIndex + Length);
+}

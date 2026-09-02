@@ -24,6 +24,12 @@ The first vertical slice already contains:
 - password-protected PDF opening without persisting the password;
 - intrinsic PDF page rotation plus persisted Reader rotation through the
   PDFium render and Direct2D layout path;
+- native PDFium text hit-testing with rotation-aware selection highlights,
+  clipboard copy, and an explicit English–Vietnamese lookup action;
+- cancellable, page-by-page search that streams results while a bounded text
+  cache incrementally indexes the document;
+- virtualized sidebar thumbnails that render only for realized list items and
+  share the existing bitmap budget;
 - packaged adversarial PDF gates for vector tables, scan-like images, broken
   page boxes, extreme aspect ratios, and encrypted documents;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
@@ -80,6 +86,6 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-Text selection, annotations editing, Note, Google Drive sync, and an installer
-are deliberately not coupled to the renderer. Search and outline extraction
-exist at the backend contract level; their full Reader UI remains roadmap work.
+Annotations editing, Note, Google Drive sync, and an installer remain outside
+M2. Text selection, copy, English–Vietnamese lookup, progressive search, and
+virtualized thumbnails now run through renderer-independent contracts.

@@ -113,7 +113,11 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
         return metrics;
     }
 
-    private sealed class PdfiumPdfDocumentSession : IPdfDocumentSession, IPdfOutlineProvider, IPdfTextProvider
+    private sealed class PdfiumPdfDocumentSession :
+        IPdfDocumentSession,
+        IPdfOutlineProvider,
+        IPdfTextProvider,
+        IPdfTextHitTestProvider
     {
         private const int MaximumRenderEdge = 4_096;
         private const int MaximumConcurrentOperations = 2;
@@ -241,6 +245,39 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                 ValidatePageIndex(pageIndex);
                 return await _dispatcher.InvokeAsync<IReadOnlyList<PdfPageRect>>(
                     () => ReadTextBounds(pageIndex, startIndex, length),
+                    cancellationToken);
+            }
+            finally
+            {
+                _lifetimeGate.Release();
+            }
+        }
+
+        public async ValueTask<int?> GetTextIndexAtPointAsync(
+            int pageIndex,
+            PdfPagePoint point,
+            double horizontalTolerance,
+            double verticalTolerance,
+            CancellationToken cancellationToken = default)
+        {
+            if (!double.IsFinite(point.X) || !double.IsFinite(point.Y))
+            {
+                throw new ArgumentOutOfRangeException(nameof(point));
+            }
+
+            horizontalTolerance = Math.Max(0d, double.IsFinite(horizontalTolerance) ? horizontalTolerance : 0d);
+            verticalTolerance = Math.Max(0d, double.IsFinite(verticalTolerance) ? verticalTolerance : 0d);
+            await _lifetimeGate.WaitAsync(cancellationToken);
+            try
+            {
+                ThrowIfDisposed();
+                ValidatePageIndex(pageIndex);
+                return await _dispatcher.InvokeAsync<int?>(
+                    () => ReadTextIndexAtPoint(
+                        pageIndex,
+                        point,
+                        horizontalTolerance,
+                        verticalTolerance),
                     cancellationToken);
             }
             finally
@@ -573,6 +610,48 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                 }
 
                 return rectangles;
+            }
+            finally
+            {
+                if (textPage is not null)
+                {
+                    fpdf_text.FPDFTextClosePage(textPage);
+                }
+
+                fpdfview.FPDF_ClosePage(page);
+            }
+        }
+
+        private int? ReadTextIndexAtPoint(
+            int pageIndex,
+            PdfPagePoint point,
+            double horizontalTolerance,
+            double verticalTolerance)
+        {
+            var page = LoadPage(pageIndex);
+            FpdfTextpageT? textPage = null;
+            try
+            {
+                textPage = fpdf_text.FPDFTextLoadPage(page);
+                if (textPage is null)
+                {
+                    return null;
+                }
+
+                var pageHeight = fpdfview.FPDF_GetPageHeightF(page);
+                var characterIndex = fpdf_text.FPDFTextGetCharIndexAtPos(
+                    textPage,
+                    point.X,
+                    pageHeight - point.Y,
+                    horizontalTolerance,
+                    verticalTolerance);
+                if (characterIndex < 0)
+                {
+                    return null;
+                }
+
+                var textIndex = fpdf_searchex.FPDFTextGetTextIndexFromCharIndex(textPage, characterIndex);
+                return textIndex >= 0 ? textIndex : null;
             }
             finally
             {

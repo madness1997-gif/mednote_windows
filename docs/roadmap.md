@@ -24,16 +24,15 @@
 - [x] add cancellable page search with a bounded 32 MB LRU text cache;
 - [x] replace the milestone renderer behind `IPdfEngine`;
 - [x] outline and destination resolution;
-- [ ] text layer, selection, copy, and English–Vietnamese dictionary action;
+- [x] text layer, selection, copy, and English–Vietnamese dictionary action;
 - [x] connect PDFium text extraction and result rectangles;
-- [ ] incremental indexing;
-- [ ] thumbnail virtualization;
+- [x] incremental indexing;
+- [x] thumbnail virtualization;
 - [x] rotation-aware intrinsic PDF and persisted Reader render/layout;
 - [x] encrypted/password PDF prompt and non-persistent password handoff;
 - [x] generated mixed-page-size 3,000-page CI fixture;
 - [x] generated adversarial CI corpus: tables, scan-like images, invalid page
   boxes, extreme ratios, and encrypted PDF;
-- [ ] real-world test corpus: scans, tables, malformed boxes, and encrypted PDFs.
 
 ## M3 — Reader annotations
 

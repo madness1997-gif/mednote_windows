@@ -9,18 +9,26 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     private readonly BitmapBudget<string> _bitmapBudget;
     private readonly PdfRenderScheduler _renderScheduler;
     private readonly string _cacheKey;
+    private readonly string _thumbnailCacheKey;
     private CancellationTokenSource? _renderCancellation;
+    private CancellationTokenSource? _thumbnailRenderCancellation;
     private readonly PdfPageMetrics _metrics;
     private RenderedPdfPage? _surface;
+    private RenderedPdfPage? _thumbnailSurface;
+    private PdfTextPage? _textPage;
+    private PdfTextSelection? _selection;
     private double _displayWidth;
     private double _displayHeight;
     private int _rotation;
     private bool _isRendering;
+    private bool _isThumbnailRendering;
     private bool _isPinned;
+    private bool _isThumbnailPinned;
     private string? _error;
     private uint _renderedPixelWidth;
     private int _renderedRotation = -1;
     private long _renderGeneration;
+    private long _thumbnailRenderGeneration;
     private bool _disposed;
 
     public PdfPageViewModel(
@@ -46,6 +54,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         PageIndex = pageIndex;
         Number = pageIndex + 1;
         _cacheKey = $"{documentId}:{Number}";
+        _thumbnailCacheKey = $"{documentId}:thumbnail:{Number}";
     }
 
     public int PageIndex { get; }
@@ -62,6 +71,18 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _surface, value);
     }
 
+    public RenderedPdfPage? ThumbnailSurface
+    {
+        get => _thumbnailSurface;
+        private set => SetProperty(ref _thumbnailSurface, value);
+    }
+
+    public PdfTextSelection? Selection
+    {
+        get => _selection;
+        private set => SetProperty(ref _selection, value);
+    }
+
     public double DisplayWidth => _displayWidth;
 
     public double DisplayHeight => _displayHeight;
@@ -72,6 +93,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     {
         get => _isRendering;
         private set => SetProperty(ref _isRendering, value);
+    }
+
+    public bool IsThumbnailRendering
+    {
+        get => _isThumbnailRendering;
+        private set => SetProperty(ref _isThumbnailRendering, value);
     }
 
     public bool IsPinned
@@ -117,8 +144,11 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         if (rotationChanged)
         {
             _renderCancellation?.Cancel();
+            _thumbnailRenderCancellation?.Cancel();
             _renderGeneration++;
+            _thumbnailRenderGeneration++;
             IsRendering = false;
+            IsThumbnailRendering = false;
             Error = null;
         }
 
@@ -131,6 +161,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
             && (rotationChanged || RelativeDifference(_renderedPixelWidth, desiredPixelWidth) > 0.16d))
         {
             EvictSurface();
+        }
+
+
+        if (rotationChanged)
+        {
+            EvictThumbnailSurface();
         }
 
         if (!notify)
@@ -168,6 +204,122 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         IsPinned = false;
         _renderCancellation?.Cancel();
     }
+
+    public async Task PinAndRenderThumbnailAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _isThumbnailPinned = true;
+        await EnsureThumbnailRenderedAsync(cancellationToken);
+    }
+
+    public void UnpinThumbnail()
+    {
+        _isThumbnailPinned = false;
+        _thumbnailRenderCancellation?.Cancel();
+    }
+
+    public async ValueTask<int?> GetTextIndexAtDisplayPointAsync(
+        PdfPagePoint displayPoint,
+        double tolerancePixels = 5d,
+        CancellationToken cancellationToken = default)
+    {
+        if (_session is not IPdfTextHitTestProvider hitTestProvider)
+        {
+            return null;
+        }
+
+        var point = PdfPageCoordinateMapper.DisplayToPage(
+            displayPoint,
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+        var offsetX = PdfPageCoordinateMapper.DisplayToPage(
+            new PdfPagePoint(displayPoint.X + tolerancePixels, displayPoint.Y),
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+        var offsetY = PdfPageCoordinateMapper.DisplayToPage(
+            new PdfPagePoint(displayPoint.X, displayPoint.Y + tolerancePixels),
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+        var horizontalTolerance = Math.Max(Math.Abs(offsetX.X - point.X), Math.Abs(offsetY.X - point.X));
+        var verticalTolerance = Math.Max(Math.Abs(offsetX.Y - point.Y), Math.Abs(offsetY.Y - point.Y));
+        return await hitTestProvider.GetTextIndexAtPointAsync(
+            PageIndex,
+            point,
+            horizontalTolerance,
+            verticalTolerance,
+            cancellationToken);
+    }
+
+    public Task<PdfTextSelection?> SelectTextBetweenAsync(
+        int anchorIndex,
+        int focusIndex,
+        CancellationToken cancellationToken = default)
+    {
+        var startIndex = Math.Min(anchorIndex, focusIndex);
+        var length = checked(Math.Abs(focusIndex - anchorIndex) + 1);
+        return SelectTextRangeAsync(startIndex, length, cancellationToken);
+    }
+
+    public void ClearTextSelection() => _owner.SetTextSelection(this, null);
+
+    public async Task<PdfTextSelection?> SelectTextRangeAsync(
+        int startIndex,
+        int length,
+        CancellationToken cancellationToken = default)
+    {
+        if (_session is not IPdfTextProvider textProvider || length <= 0)
+        {
+            _owner.SetTextSelection(this, null);
+            return null;
+        }
+
+        var textPage = _textPage ??= await textProvider.GetTextPageAsync(PageIndex, cancellationToken);
+        if (textPage.Text.Length == 0 || startIndex >= textPage.Text.Length)
+        {
+            _owner.SetTextSelection(this, null);
+            return null;
+        }
+
+        startIndex = Math.Clamp(startIndex, 0, textPage.Text.Length - 1);
+        length = Math.Clamp(length, 1, textPage.Text.Length - startIndex);
+        var bounds = await textProvider.GetTextBoundsAsync(PageIndex, startIndex, length, cancellationToken);
+        var selection = new PdfTextSelection(
+            PageIndex,
+            startIndex,
+            length,
+            textPage.Text.Substring(startIndex, length),
+            bounds);
+        _owner.SetTextSelection(this, selection);
+        return selection;
+    }
+
+    public IReadOnlyList<PdfPageRect> GetDisplaySelectionBounds()
+    {
+        if (Selection is not { } selection)
+        {
+            return Array.Empty<PdfPageRect>();
+        }
+
+        return selection.Bounds
+            .Select(rectangle => PdfPageCoordinateMapper.PageToDisplay(
+                rectangle,
+                _metrics,
+                DisplayWidth,
+                DisplayHeight,
+                Rotation))
+            .Where(rectangle => rectangle.Width > 0d && rectangle.Height > 0d)
+            .ToArray();
+    }
+
+    internal bool IsTextSelectionEnabled => _owner.ActiveTool == PdfTool.Select;
+
+    internal void SetSelectionFromOwner(PdfTextSelection? selection) => Selection = selection;
 
     internal void ReportPresentationError(Exception exception)
     {
@@ -252,6 +404,61 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task EnsureThumbnailRenderedAsync(CancellationToken cancellationToken)
+    {
+        if (ThumbnailSurface is not null)
+        {
+            _bitmapBudget.Touch(_thumbnailCacheKey);
+            return;
+        }
+
+        _thumbnailRenderCancellation?.Cancel();
+        _thumbnailRenderCancellation?.Dispose();
+        _thumbnailRenderCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = _thumbnailRenderCancellation.Token;
+        var generation = ++_thumbnailRenderGeneration;
+        var size = DesiredThumbnailPixelSize();
+        IsThumbnailRendering = true;
+        try
+        {
+            var estimatedBytes = checked((long)size.Width * size.Height * 4L);
+            var rendered = await _renderScheduler.RunAsync(
+                estimatedBytes,
+                renderToken => _session.RenderPageAsync(
+                    new PdfRenderRequest(PageIndex, size.Width, size.Height, Rotation),
+                    renderToken),
+                token);
+            token.ThrowIfCancellationRequested();
+            if (generation != _thumbnailRenderGeneration || !_isThumbnailPinned)
+            {
+                return;
+            }
+
+            if (!rendered.HasValidBuffer)
+            {
+                throw new InvalidDataException($"Thumbnail trang {Number} không hợp lệ.");
+            }
+
+            ThumbnailSurface = rendered;
+            _bitmapBudget.Report(
+                _thumbnailCacheKey,
+                rendered.EstimatedResidentBytes,
+                EvictThumbnailSurface,
+                () => _isThumbnailPinned);
+        }
+        catch (OperationCanceledException)
+        {
+            // A recycled sidebar item no longer needs its thumbnail.
+        }
+        finally
+        {
+            if (generation == _thumbnailRenderGeneration)
+            {
+                IsThumbnailRendering = false;
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -262,8 +469,13 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         _disposed = true;
         _renderCancellation?.Cancel();
         _renderCancellation?.Dispose();
+        _thumbnailRenderCancellation?.Cancel();
+        _thumbnailRenderCancellation?.Dispose();
         _bitmapBudget.Remove(_cacheKey);
+        _bitmapBudget.Remove(_thumbnailCacheKey);
         Surface = null;
+        ThumbnailSurface = null;
+        Selection = null;
     }
 
     private void EvictSurface()
@@ -272,6 +484,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         Surface = null;
         _renderedPixelWidth = 0;
         _renderedRotation = -1;
+    }
+
+    private void EvictThumbnailSurface()
+    {
+        _bitmapBudget.Remove(_thumbnailCacheKey);
+        ThumbnailSurface = null;
     }
 
     private static double RelativeDifference(uint left, uint right) =>
@@ -286,5 +504,16 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         return (
             checked((uint)Math.Clamp(Math.Round(rawWidth * scale), 64d, maximumEdge)),
             checked((uint)Math.Clamp(Math.Round(rawHeight * scale), 64d, maximumEdge)));
+    }
+
+    private (uint Width, uint Height) DesiredThumbnailPixelSize()
+    {
+        const double maximumEdge = 160d;
+        var rawWidth = 112d;
+        var rawHeight = rawWidth / Math.Max(0.05d, AspectRatio);
+        var scale = Math.Min(1d, maximumEdge / Math.Max(rawWidth, rawHeight));
+        return (
+            checked((uint)Math.Clamp(Math.Round(rawWidth * scale), 32d, maximumEdge)),
+            checked((uint)Math.Clamp(Math.Round(rawHeight * scale), 32d, maximumEdge)));
     }
 }

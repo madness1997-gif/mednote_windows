@@ -21,11 +21,25 @@
             <Border.Shadow>
                 <ThemeShadow />
             </Border.Shadow>
-            <Grid>
+            <Grid
+                x:Name="PageInteractionLayer"
+                PointerCaptureLost="OnPointerCaptureLost"
+                PointerMoved="OnPointerMoved"
+                PointerPressed="OnPointerPressed"
+                PointerReleased="OnPointerReleased">
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Click="OnCopySelectionClicked" Text="Sao chép" />
+                        <MenuFlyoutItem Click="OnDictionarySelectionClicked" Text="Tra Anh–Việt" />
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
                 <Image
                     x:Name="PageImage"
                     Stretch="Fill"
                     AutomationProperties.Name="Trang PDF" />
+                <Canvas
+                    x:Name="SelectionCanvas"
+                    IsHitTestVisible="False" />
                 <ProgressRing
                     Width="34"
                     Height="34"
