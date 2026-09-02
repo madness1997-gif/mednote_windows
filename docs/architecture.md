@@ -41,6 +41,10 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 - Uploads tightly packed PDFium BGRA bytes into Win2D `CanvasBitmap`, then draws
   them onto a Direct2D-backed `CanvasImageSource` for realized pages. No PNG
   encode/decode step exists in the render path.
+- Observes both Win2D `CanvasDevice.DeviceLost` and XAML
+  `CompositionTarget.SurfaceContentsLost`; realized presenters rebuild their
+  GPU surfaces from the budgeted managed BGRA buffer without rasterizing the
+  PDF again.
 - Persists state atomically under `%LOCALAPPDATA%\MedNote Reader`.
 
 ## Renderer strategy
@@ -77,3 +81,5 @@ adapter boundary. See `docs/decisions/0001-pdfium-backend.md`.
 8. Persistence is atomic and does not block Windows shutdown on a long synchronization path.
 9. CI must present page 1,500 from a generated 3,000-page mixed-size document
    through Direct2D within 45 seconds and below a 768 MiB process working set.
+10. CI must force one surface-recreation cycle and render adversarial table,
+    scan-like, invalid-box, extreme-ratio, and password-protected fixtures.

@@ -63,6 +63,12 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(ViewModel.PendingPasswordDocumentPath))
+        {
+            await OpenFileAsync(ViewModel.PendingPasswordDocumentPath);
+            return;
+        }
+
         ApplyViewModelState();
         await _viewport.RestoreSavedPositionAsync();
     }
@@ -87,24 +93,58 @@ public sealed partial class MainWindow : Window
 
     private async Task OpenFileAsync(string path)
     {
-        try
+        var password = RenderProbe.StartupPassword;
+        while (true)
         {
-            await ViewModel.OpenDocumentAsync(path);
-            ApplyViewModelState();
-            var probePage = RenderProbe.TargetPage(ViewModel.PageCount);
-            if (probePage is not null)
+            try
             {
-                NavigateToPage(probePage.Value, true);
+                await ViewModel.OpenDocumentAsync(path, password);
+                ApplyViewModelState();
+                var probePage = RenderProbe.TargetPage(ViewModel.PageCount);
+                if (probePage is not null)
+                {
+                    NavigateToPage(probePage.Value, true);
+                }
+                else
+                {
+                    await _viewport.RestoreSavedPositionAsync();
+                }
+
+                return;
             }
-            else
+            catch (PdfPasswordRequiredException)
             {
-                await _viewport.RestoreSavedPositionAsync();
+                password = await PromptForPdfPasswordAsync();
+                if (password is null)
+                {
+                    return;
+                }
+            }
+            catch (Exception exception)
+            {
+                await ShowErrorAsync("Không mở được PDF", exception.Message);
+                return;
             }
         }
-        catch (Exception exception)
+    }
+
+    private async Task<string?> PromptForPdfPasswordAsync()
+    {
+        var passwordBox = new PasswordBox
         {
-            await ShowErrorAsync("Không mở được PDF", exception.Message);
-        }
+            PlaceholderText = "Nhập mật khẩu PDF",
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot,
+            Title = "PDF được bảo vệ",
+            Content = passwordBox,
+            PrimaryButtonText = "Mở",
+            CloseButtonText = "Hủy",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary ? passwordBox.Password : null;
     }
 
     private void OnPreviousPageClicked(object sender, RoutedEventArgs e) => NavigateToPage(ViewModel.CurrentPage - 1);

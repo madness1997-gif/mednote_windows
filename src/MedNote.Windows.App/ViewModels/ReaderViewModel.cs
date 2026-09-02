@@ -155,6 +155,8 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public ReaderPosition SavedPosition => _position;
 
+    public string? PendingPasswordDocumentPath { get; private set; }
+
     public async Task InitializeAsync(bool reopenActiveDocument = true, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -178,6 +180,11 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         {
             await OpenDocumentAsync(active.Path, cancellationToken);
         }
+        catch (PdfPasswordRequiredException)
+        {
+            PendingPasswordDocumentPath = active.Path;
+            StatusText = "Tài liệu gần nhất cần nhập lại mật khẩu";
+        }
         catch (Exception exception)
         {
             StatusText = $"Không mở lại được tài liệu gần nhất: {exception.Message}";
@@ -186,13 +193,28 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
     public async Task OpenDocumentAsync(string path, CancellationToken cancellationToken = default)
     {
+        await OpenDocumentAsync(path, password: null, cancellationToken: cancellationToken);
+    }
+
+    public async Task OpenDocumentAsync(
+        string path,
+        string? password,
+        CancellationToken cancellationToken = default)
+    {
         await _documentGate.WaitAsync(cancellationToken);
+        var previousStatus = StatusText;
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             IsBusy = true;
             StatusText = "Đang mở PDF…";
-            await ReplaceDocumentSessionAsync(path, cancellationToken);
+            await ReplaceDocumentSessionAsync(path, password, cancellationToken);
+            PendingPasswordDocumentPath = null;
+        }
+        catch
+        {
+            StatusText = previousStatus;
+            throw;
         }
         finally
         {
@@ -417,7 +439,10 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    private async Task ReplaceDocumentSessionAsync(string path, CancellationToken cancellationToken)
+    private async Task ReplaceDocumentSessionAsync(
+        string path,
+        string? password,
+        CancellationToken cancellationToken)
     {
         IPdfDocumentSession? nextSession = null;
         try
@@ -431,7 +456,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
 
             var lastModified = new DateTimeOffset(info.LastWriteTimeUtc).ToUnixTimeMilliseconds();
             var documentId = DocumentIdentity.Create(info.Name, info.Length, lastModified);
-            nextSession = await _pdfEngine.OpenAsync(fullPath, cancellationToken);
+            nextSession = await _pdfEngine.OpenAsync(fullPath, password, cancellationToken);
             var existing = _persistence.FindDocument(documentId);
             var nextReader = (existing?.Reader ?? new ReaderState()).Normalize(nextSession.PageCount);
             var nextPosition = (existing?.Position ?? new ReaderPosition { AnchorPage = nextReader.Page }).Normalize(nextSession.PageCount);

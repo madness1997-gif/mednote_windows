@@ -13,6 +13,7 @@ public sealed partial class PdfPagePresenter : UserControl
     private PdfPageViewModel? _boundPage;
     private bool _renderLoopRunning;
     private bool _renderRequested;
+    private int _surfaceRefreshQueued;
     private CanvasImageSource? _direct2DSurface;
 
     public PdfPagePresenter()
@@ -23,6 +24,8 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        Direct2DPageSurfaceFactory.SurfacesInvalidated += OnDirect2DSurfacesInvalidated;
+        Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost += OnSurfaceContentsLost;
         BindPage(DataContext as PdfPageViewModel);
         PresentSurface(_boundPage?.Surface);
         RequestRender();
@@ -30,6 +33,8 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        Direct2DPageSurfaceFactory.SurfacesInvalidated -= OnDirect2DSurfacesInvalidated;
+        Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost -= OnSurfaceContentsLost;
         _renderRequested = false;
         ClearDirect2DSurface();
         BindPage(null);
@@ -40,6 +45,7 @@ public sealed partial class PdfPagePresenter : UserControl
         BindPage(args.NewValue as PdfPageViewModel);
         if (IsLoaded)
         {
+            PresentSurface(_boundPage?.Surface);
             RequestRender();
         }
     }
@@ -74,7 +80,6 @@ public sealed partial class PdfPagePresenter : UserControl
         if (_boundPage is not null)
         {
             _boundPage.PropertyChanged += OnPagePropertyChanged;
-            PresentSurface(_boundPage.Surface);
         }
         else
         {
@@ -146,7 +151,11 @@ public sealed partial class PdfPagePresenter : UserControl
             PageImage.Source = _direct2DSurface;
             if (_boundPage is not null)
             {
-                RenderProbe.SignalPagePresented(_boundPage.Number, _boundPage.OwnerPageCount, surface);
+                _boundPage.ReportPresentationSucceeded();
+                if (RenderProbe.SignalPagePresented(_boundPage.Number, _boundPage.OwnerPageCount, surface))
+                {
+                    Direct2DPageSurfaceFactory.RequestSurfaceRecreation();
+                }
             }
         }
         catch (Exception exception)
@@ -159,5 +168,29 @@ public sealed partial class PdfPagePresenter : UserControl
     {
         PageImage.Source = null;
         _direct2DSurface = null;
+    }
+
+    private void OnDirect2DSurfacesInvalidated(object? sender, EventArgs e) => QueueSurfaceRefresh();
+
+    private void OnSurfaceContentsLost(object? sender, object e) => QueueSurfaceRefresh();
+
+    private void QueueSurfaceRefresh()
+    {
+        if (Interlocked.Exchange(ref _surfaceRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
+        if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                Interlocked.Exchange(ref _surfaceRefreshQueued, 0);
+                if (IsLoaded)
+                {
+                    PresentSurface(_boundPage?.Surface);
+                }
+            }))
+        {
+            Interlocked.Exchange(ref _surfaceRefreshQueued, 0);
+        }
     }
 }

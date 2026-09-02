@@ -147,6 +147,8 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         Error = $"Không hiển thị được trang {Number} bằng Direct2D: {exception.Message}";
     }
 
+    internal void ReportPresentationSucceeded() => Error = null;
+
     public async Task EnsureRenderedAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

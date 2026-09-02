@@ -46,16 +46,24 @@ jobs:
         run: |
           $smokePdf = Join-Path $env:RUNNER_TEMP "mednote-render-smoke.pdf"
           $largePdf = Join-Path $env:RUNNER_TEMP "mednote-render-3000-pages.pdf"
+          $adversarialPdf = Join-Path $env:RUNNER_TEMP "mednote-adversarial-corpus.pdf"
+          $encryptedPdf = Join-Path $env:RUNNER_TEMP "mednote-encrypted.pdf"
           $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
           [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
+          $encryptedBase64 = (Get-Content tests/fixtures/encrypted-password-mednote.pdf.base64 -Raw).Trim()
+          [IO.File]::WriteAllBytes($encryptedPdf, [Convert]::FromBase64String($encryptedBase64))
           & tests/fixtures/New-MixedPagePdf.ps1 -Path $largePdf -PageCount 3000
+          & tests/fixtures/New-AdversarialPdfCorpus.ps1 -Path $adversarialPdf
 
           function Invoke-MedNoteRenderSmoke {
             param(
               [Parameter(Mandatory = $true)][string]$PdfPath,
               [Parameter(Mandatory = $true)][int]$TargetPage,
               [Parameter(Mandatory = $true)][int]$ExpectedPages,
-              [Parameter(Mandatory = $true)][string]$ProbeName
+              [Parameter(Mandatory = $true)][string]$ProbeName,
+              [switch]$ExpectSurfaceRecovery,
+              [switch]$RequireInk,
+              [string]$Password
             )
 
             $startedAt = Get-Date
@@ -63,6 +71,16 @@ jobs:
             Remove-Item $renderProbe -Force -ErrorAction SilentlyContinue
             $env:MEDNOTE_RENDER_PROBE = $renderProbe
             $env:MEDNOTE_RENDER_TARGET_PAGE = $TargetPage.ToString()
+            if ($ExpectSurfaceRecovery) {
+              $env:MEDNOTE_SIMULATE_SURFACE_LOSS = "1"
+            } else {
+              Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
+            }
+            if ($Password) {
+              $env:MEDNOTE_PDF_PASSWORD = $Password
+            } else {
+              Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
+            }
             $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe `
               -ArgumentList "`"$PdfPath`"" -PassThru
 
@@ -104,18 +122,30 @@ jobs:
 
               $probe = (Get-Content $renderProbe -Raw).Trim()
               Write-Host "PDF render probe: $probe"
-              if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=\d+;height=\d+;bytes=\d+;workingSet=(\d+);elapsedMs=\d+$') {
+              if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=\d+;height=\d+;bytes=\d+;workingSet=(\d+);elapsedMs=(\d+);presentations=(\d+);inkSamples=(\d+)$') {
                 throw "Invalid Direct2D render probe: $probe"
               }
 
               $renderedPage = [int]$Matches[1]
               $documentPages = [int]$Matches[2]
               $workingSet = [long]$Matches[3]
+              $elapsedMilliseconds = [long]$Matches[4]
+              $presentations = [int]$Matches[5]
+              $inkSamples = [int]$Matches[6]
               if ($renderedPage -ne $TargetPage -or $documentPages -ne $ExpectedPages) {
                 throw "Unexpected rendered page/document count: $renderedPage/$documentPages"
               }
               if ($workingSet -gt 805306368) {
                 throw "Working set exceeded the 768 MiB smoke-test ceiling: $workingSet bytes"
+              }
+              if ($elapsedMilliseconds -gt 45000) {
+                throw "Render probe exceeded the 45-second ceiling: $elapsedMilliseconds ms"
+              }
+              if ($ExpectSurfaceRecovery -and $presentations -lt 2) {
+                throw "Direct2D surface recovery did not present the page twice"
+              }
+              if ($RequireInk -and $inkSamples -le 0) {
+                throw "Rendered corpus page contains no sampled non-white pixels"
               }
 
               $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)"
@@ -130,11 +160,23 @@ jobs:
           }
 
           Invoke-MedNoteRenderSmoke -PdfPath $smokePdf -TargetPage 1 -ExpectedPages 1 `
-            -ProbeName "mednote-render-small.txt"
+            -ProbeName "mednote-render-small.txt" -ExpectSurfaceRecovery
           Invoke-MedNoteRenderSmoke -PdfPath $largePdf -TargetPage 1500 -ExpectedPages 3000 `
             -ProbeName "mednote-render-large.txt"
+          Invoke-MedNoteRenderSmoke -PdfPath $adversarialPdf -TargetPage 1 -ExpectedPages 4 `
+            -ProbeName "mednote-render-table.txt" -RequireInk
+          Invoke-MedNoteRenderSmoke -PdfPath $adversarialPdf -TargetPage 2 -ExpectedPages 4 `
+            -ProbeName "mednote-render-scan.txt" -RequireInk
+          Invoke-MedNoteRenderSmoke -PdfPath $adversarialPdf -TargetPage 3 -ExpectedPages 4 `
+            -ProbeName "mednote-render-zero-crop.txt"
+          Invoke-MedNoteRenderSmoke -PdfPath $adversarialPdf -TargetPage 4 -ExpectedPages 4 `
+            -ProbeName "mednote-render-extreme-box.txt"
+          Invoke-MedNoteRenderSmoke -PdfPath $encryptedPdf -TargetPage 1 -ExpectedPages 1 `
+            -ProbeName "mednote-render-encrypted.txt" -Password "mednote"
           Remove-Item Env:MEDNOTE_RENDER_PROBE -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
+          Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
+          Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
       - name: Verify native artifact boundary
         shell: pwsh
         run: |

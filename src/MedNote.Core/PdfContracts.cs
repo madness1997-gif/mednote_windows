@@ -45,6 +45,10 @@ public sealed record RenderedPdfPage(byte[] BgraBytes, uint PixelWidth, uint Pix
         && BgraBytes.LongLength >= checked((long)Stride * PixelHeight);
 }
 
+public sealed class PdfPasswordRequiredException(string message) : IOException(message)
+{
+}
+
 public interface IPdfDocumentSession : IAsyncDisposable
 {
     string Path { get; }
@@ -61,4 +65,13 @@ public interface IPdfDocumentSession : IAsyncDisposable
 public interface IPdfEngine
 {
     ValueTask<IPdfDocumentSession> OpenAsync(string path, CancellationToken cancellationToken = default);
+
+    ValueTask<IPdfDocumentSession> OpenAsync(
+        string path,
+        string? password,
+        CancellationToken cancellationToken = default) =>
+        string.IsNullOrEmpty(password)
+            ? OpenAsync(path, cancellationToken)
+            : ValueTask.FromException<IPdfDocumentSession>(
+                new NotSupportedException("PDF engine này chưa hỗ trợ tài liệu có mật khẩu."));
 }

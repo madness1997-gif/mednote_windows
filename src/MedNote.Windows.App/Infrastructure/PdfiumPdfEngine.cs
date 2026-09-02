@@ -10,8 +10,14 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
     private readonly PdfiumDispatcher _dispatcher = new();
     private int _disposed;
 
+    public ValueTask<IPdfDocumentSession> OpenAsync(
+        string path,
+        CancellationToken cancellationToken = default) =>
+        OpenAsync(path, password: null, cancellationToken: cancellationToken);
+
     public async ValueTask<IPdfDocumentSession> OpenAsync(
         string path,
+        string? password,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -26,7 +32,7 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
         var opened = await _dispatcher.InvokeAsync(
             () =>
             {
-                var document = fpdfview.FPDF_LoadDocument(fullPath, null);
+                var document = fpdfview.FPDF_LoadDocument(fullPath, password);
                 if (document is null)
                 {
                     throw CreateLoadException(fullPath, fpdfview.FPDF_GetLastError());
@@ -76,7 +82,7 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
     {
         2 => new IOException($"Không thể đọc tệp PDF: {path}"),
         3 => new InvalidDataException("Tệp không đúng định dạng PDF hoặc đã bị hỏng."),
-        4 => new UnauthorizedAccessException("PDF được bảo vệ bằng mật khẩu; bản hiện tại chưa có hộp nhập mật khẩu."),
+        4 => new PdfPasswordRequiredException("PDF cần mật khẩu hoặc mật khẩu vừa nhập không đúng."),
         5 => new UnauthorizedAccessException("Thiết lập bảo mật của PDF không cho phép mở tài liệu."),
         6 => new InvalidDataException("PDF chứa lỗi cấu trúc trang."),
         _ => new InvalidDataException($"PDFium không mở được tài liệu (mã lỗi {errorCode})."),

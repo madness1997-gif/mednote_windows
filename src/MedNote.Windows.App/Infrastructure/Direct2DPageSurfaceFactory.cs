@@ -12,6 +12,11 @@ namespace MedNote.Windows.App.Infrastructure;
 /// </summary>
 internal static class Direct2DPageSurfaceFactory
 {
+    private static readonly object DeviceGate = new();
+    private static CanvasDevice? _device;
+
+    public static event EventHandler? SurfacesInvalidated;
+
     public static CanvasImageSource Create(RenderedPdfPage page)
     {
         ArgumentNullException.ThrowIfNull(page);
@@ -20,28 +25,100 @@ internal static class Direct2DPageSurfaceFactory
             throw new InvalidDataException("Không thể tạo bề mặt Direct2D từ buffer PDFium.");
         }
 
-        var bytes = GetTightlyPackedBytes(page);
-        var device = CanvasDevice.GetSharedDevice();
-        using var bitmap = CanvasBitmap.CreateFromBytes(
-            device,
-            bytes,
-            checked((int)page.PixelWidth),
-            checked((int)page.PixelHeight),
-            DirectXPixelFormat.B8G8R8A8UIntNormalized,
-            96f,
-            CanvasAlphaMode.Ignore);
-        var imageSource = new CanvasImageSource(
-            device,
-            page.PixelWidth,
-            page.PixelHeight,
-            96f,
-            CanvasAlphaMode.Ignore);
-        using (var drawing = imageSource.CreateDrawingSession(Colors.White))
+        var device = GetSharedDevice();
+        try
         {
-            drawing.DrawImage(bitmap);
+            var bytes = GetTightlyPackedBytes(page);
+            using var bitmap = CanvasBitmap.CreateFromBytes(
+                device,
+                bytes,
+                checked((int)page.PixelWidth),
+                checked((int)page.PixelHeight),
+                DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                96f,
+                CanvasAlphaMode.Ignore);
+            var imageSource = new CanvasImageSource(
+                device,
+                page.PixelWidth,
+                page.PixelHeight,
+                96f,
+                CanvasAlphaMode.Ignore);
+            using (var drawing = imageSource.CreateDrawingSession(Colors.White))
+            {
+                drawing.DrawImage(bitmap);
+            }
+
+            return imageSource;
+        }
+        catch (Exception exception) when (device.IsDeviceLost(exception.HResult))
+        {
+            try
+            {
+                device.RaiseDeviceLost();
+            }
+            catch
+            {
+                // Preserve the original Direct2D failure for the presenter.
+            }
+
+            throw;
+        }
+    }
+
+    public static void RequestSurfaceRecreation()
+    {
+        var handlers = SurfacesInvalidated;
+        if (handlers is null)
+        {
+            return;
         }
 
-        return imageSource;
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(null, EventArgs.Empty);
+            }
+            catch
+            {
+                // One recycled presenter must not block the remaining pages.
+            }
+        }
+    }
+
+    private static CanvasDevice GetSharedDevice()
+    {
+        lock (DeviceGate)
+        {
+            var sharedDevice = CanvasDevice.GetSharedDevice();
+            if (ReferenceEquals(_device, sharedDevice))
+            {
+                return sharedDevice;
+            }
+
+            if (_device is not null)
+            {
+                _device.DeviceLost -= OnDeviceLost;
+            }
+
+            _device = sharedDevice;
+            _device.DeviceLost += OnDeviceLost;
+            return sharedDevice;
+        }
+    }
+
+    private static void OnDeviceLost(CanvasDevice sender, object args)
+    {
+        lock (DeviceGate)
+        {
+            if (ReferenceEquals(_device, sender))
+            {
+                _device.DeviceLost -= OnDeviceLost;
+                _device = null;
+            }
+        }
+
+        RequestSurfaceRecreation();
     }
 
     private static byte[] GetTightlyPackedBytes(RenderedPdfPage page)

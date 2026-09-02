@@ -23,7 +23,7 @@ The adapter will:
 2. serialize every PDFium call through a dedicated dispatcher because document,
    page, text-page, bitmap, bookmark, and destination handles are not shared with
    callers;
-3. copy render results into managed PNG/bitmap data before returning;
+3. copy render results into tightly packed managed BGRA data before returning;
 4. translate bookmarks, page destinations, extracted text, and rectangles into
    `MedNote.Core` contracts;
 5. bound malformed outline traversal by both a visited-handle set and a maximum
@@ -50,6 +50,8 @@ binding later therefore affects only the adapter project.
 
 - Native package provenance and PDFium license notices must ship with releases.
 - PDFium upgrades require the PDF corpus and ABI smoke tests before merge.
+- Passwords are passed only to `FPDF_LoadDocument` for the current open
+  attempt. They are never written to Reader persistence or logs.
 - The serialized dispatcher limits native parallelism; the UI still remains
   responsive through async queues, cancellation, render prioritization, and the
   bitmap/text caches.

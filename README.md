@@ -11,6 +11,7 @@ The first vertical slice already contains:
 - open and drag/drop PDF;
 - single-page and virtualized continuous modes;
 - a zero-encode PDFium BGRA → Win2D/Direct2D display path;
+- automatic Direct2D surface recreation after GPU device loss or XAML surface loss;
 - page navigation, fit-page, fit-width, and zoom;
 - hand/pan as the default Reader tool;
 - bookmarks;
@@ -20,6 +21,9 @@ The first vertical slice already contains:
   when pages leave the viewport;
 - one-pass page-metrics discovery and a packaged-app smoke benchmark that jumps
   directly to page 1,500 of a generated 3,000-page mixed-size PDF;
+- password-protected PDF opening without persisting the password;
+- packaged adversarial PDF gates for vector tables, scan-like images, broken
+  page boxes, extreme aspect ratios, and encrypted documents;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
 
 The M2 backend now implements renderer-independent PDF outline destinations,
@@ -45,6 +49,8 @@ contracts do not depend on native handle types.
 Read [architecture.md](docs/architecture.md), [web-compatibility.md](docs/web-compatibility.md), and [roadmap.md](docs/roadmap.md) before expanding the app.
 The PDFium selection and threading boundary are recorded in
 [ADR 0001](docs/decisions/0001-pdfium-backend.md).
+The Direct2D resource lifecycle is recorded in
+[ADR 0002](docs/decisions/0002-direct2d-surface-lifecycle.md).
 
 ## Build
 

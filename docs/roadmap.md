@@ -15,6 +15,7 @@
 - [x] bounded/cancellable render scheduler and cached page metrics;
 - [x] packaged 3,000-page page-jump smoke benchmark with a memory ceiling;
 - [x] DPI-aware layout refresh and ratio-based two-pass position restore.
+- [x] recover realized Direct2D surfaces after device/surface loss.
 
 ## M2 — Production PDFium backend
 
@@ -28,8 +29,10 @@
 - [ ] incremental indexing;
 - [ ] thumbnail virtualization;
 - [ ] rotation-aware render/layout;
-- [ ] encrypted/password PDF flow;
+- [x] encrypted/password PDF prompt and non-persistent password handoff;
 - [x] generated mixed-page-size 3,000-page CI fixture;
+- [x] generated adversarial CI corpus: tables, scan-like images, invalid page
+  boxes, extreme ratios, and encrypted PDF;
 - [ ] real-world test corpus: scans, tables, malformed boxes, and encrypted PDFs.
 
 ## M3 — Reader annotations
