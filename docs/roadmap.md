@@ -28,7 +28,7 @@
 - [x] connect PDFium text extraction and result rectangles;
 - [ ] incremental indexing;
 - [ ] thumbnail virtualization;
-- [ ] rotation-aware render/layout;
+- [x] rotation-aware intrinsic PDF and persisted Reader render/layout;
 - [x] encrypted/password PDF prompt and non-persistent password handoff;
 - [x] generated mixed-page-size 3,000-page CI fixture;
 - [x] generated adversarial CI corpus: tables, scan-like images, invalid page

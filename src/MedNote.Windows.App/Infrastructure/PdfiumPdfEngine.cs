@@ -170,7 +170,11 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                 ThrowIfDisposed();
                 ValidatePageIndex(request.PageIndex);
                 return await _dispatcher.InvokeAsync(
-                    () => RenderPageToBgra(request.PageIndex, request.PixelWidth, request.PixelHeight),
+                    () => RenderPageToBgra(
+                        request.PageIndex,
+                        request.PixelWidth,
+                        request.PixelHeight,
+                        request.Rotation),
                     cancellationToken);
             }
             finally
@@ -274,7 +278,11 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             }
         }
 
-        private RenderedPdfPage RenderPageToBgra(int pageIndex, uint requestedWidth, uint requestedHeight)
+        private RenderedPdfPage RenderPageToBgra(
+            int pageIndex,
+            uint requestedWidth,
+            uint requestedHeight,
+            int requestedRotation)
         {
             var page = LoadPage(pageIndex);
             FpdfBitmapT? bitmap = null;
@@ -282,8 +290,14 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             {
                 var pageWidth = Math.Max(1d, fpdfview.FPDF_GetPageWidthF(page));
                 var pageHeight = Math.Max(1d, fpdfview.FPDF_GetPageHeightF(page));
+                var rotation = ReaderMath.NormalizeRotation(requestedRotation);
+                var rotatedAspectRatio = rotation is 90 or 270
+                    ? pageHeight / pageWidth
+                    : pageWidth / pageHeight;
                 var rawWidth = Math.Max(64d, requestedWidth);
-                var rawHeight = Math.Max(64d, requestedHeight > 0 ? requestedHeight : rawWidth * pageHeight / pageWidth);
+                var rawHeight = Math.Max(
+                    64d,
+                    requestedHeight > 0 ? requestedHeight : rawWidth / rotatedAspectRatio);
                 var scale = Math.Min(1d, MaximumRenderEdge / Math.Max(rawWidth, rawHeight));
                 var width = checked((int)Math.Clamp(Math.Round(rawWidth * scale), 64d, MaximumRenderEdge));
                 var height = checked((int)Math.Clamp(Math.Round(rawHeight * scale), 64d, MaximumRenderEdge));
@@ -302,7 +316,15 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
                 var flags = RenderFlags.RenderAnnotations
                     | RenderFlags.OptimizeTextForLcd
                     | RenderFlags.LimitImageCacheSize;
-                fpdfview.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, (int)flags);
+                fpdfview.FPDF_RenderPageBitmap(
+                    bitmap,
+                    page,
+                    0,
+                    0,
+                    width,
+                    height,
+                    rotation / 90,
+                    (int)flags);
 
                 var buffer = fpdfview.FPDFBitmapGetBuffer(bitmap);
                 var stride = fpdfview.FPDFBitmapGetStride(bitmap);

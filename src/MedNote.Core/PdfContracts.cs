@@ -21,9 +21,23 @@ public readonly record struct PdfPageMetrics(double Width, double Height)
                 : DefaultAspectRatio;
         }
     }
+
+    /// <summary>
+    /// Returns the display ratio after applying the Reader's additional
+    /// clockwise rotation. PDFium has already folded the PDF page's intrinsic
+    /// /Rotate entry into Width and Height.
+    /// </summary>
+    public double AspectRatioForRotation(int rotation) =>
+        ReaderMath.NormalizeRotation(rotation) is 90 or 270
+            ? 1d / AspectRatio
+            : AspectRatio;
 }
 
-public readonly record struct PdfRenderRequest(int PageIndex, uint PixelWidth, uint PixelHeight);
+public readonly record struct PdfRenderRequest(
+    int PageIndex,
+    uint PixelWidth,
+    uint PixelHeight,
+    int Rotation = 0);
 
 public sealed record RenderedPdfPage(byte[] BgraBytes, uint PixelWidth, uint PixelHeight, uint Stride)
 {

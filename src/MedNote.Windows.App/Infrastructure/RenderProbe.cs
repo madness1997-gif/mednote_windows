@@ -12,6 +12,7 @@ internal static class RenderProbe
     private const string EnvironmentVariableName = "MEDNOTE_RENDER_PROBE";
     private const string TargetPageEnvironmentVariableName = "MEDNOTE_RENDER_TARGET_PAGE";
     private const string PasswordEnvironmentVariableName = "MEDNOTE_PDF_PASSWORD";
+    private const string RotationEnvironmentVariableName = "MEDNOTE_RENDER_ROTATION";
     private const string SimulateSurfaceLossEnvironmentVariableName = "MEDNOTE_SIMULATE_SURFACE_LOSS";
     private static readonly long StartedAt;
     private static int _targetPresentations;
@@ -40,7 +41,27 @@ internal static class RenderProbe
             ? null
             : Environment.GetEnvironmentVariable(PasswordEnvironmentVariableName);
 
-    public static bool SignalPagePresented(int pageNumber, int pageCount, RenderedPdfPage rendered)
+    public static int? StartupRotation
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(EnvironmentVariableName)))
+            {
+                return null;
+            }
+
+            var raw = Environment.GetEnvironmentVariable(RotationEnvironmentVariableName);
+            return int.TryParse(raw, out var rotation)
+                ? ReaderMath.NormalizeRotation(rotation)
+                : null;
+        }
+    }
+
+    public static bool SignalPagePresented(
+        int pageNumber,
+        int pageCount,
+        int rotation,
+        RenderedPdfPage rendered)
     {
         var probePath = Environment.GetEnvironmentVariable(EnvironmentVariableName);
         if (string.IsNullOrWhiteSpace(probePath))
@@ -51,6 +72,14 @@ internal static class RenderProbe
         var targetPage = TargetPage(pageCount);
         if (targetPage is not null && targetPage.Value != pageNumber)
         {
+            return false;
+        }
+
+        var normalizedRotation = ReaderMath.NormalizeRotation(rotation);
+        if (StartupRotation is { } expectedRotation && normalizedRotation != expectedRotation)
+        {
+            // Opening a persisted document can briefly realize its previous
+            // orientation before MainWindow applies the CI-requested rotation.
             return false;
         }
 
@@ -72,9 +101,10 @@ internal static class RenderProbe
             using var process = Process.GetCurrentProcess();
             var elapsedMilliseconds = Stopwatch.GetElapsedTime(StartedAt).TotalMilliseconds;
             var inkSamples = CountInkSamples(rendered);
+            var cornerSignature = ReadCornerSignature(rendered);
             File.WriteAllText(
                 probePath,
-                $"surface=direct2d;page={pageNumber};pages={pageCount};width={rendered.PixelWidth};height={rendered.PixelHeight};bytes={rendered.BgraBytes.Length};workingSet={process.WorkingSet64};elapsedMs={elapsedMilliseconds:F0};presentations={presentationCount};inkSamples={inkSamples}");
+                $"surface=direct2d;page={pageNumber};pages={pageCount};width={rendered.PixelWidth};height={rendered.PixelHeight};bytes={rendered.BgraBytes.Length};workingSet={process.WorkingSet64};elapsedMs={elapsedMilliseconds:F0};presentations={presentationCount};inkSamples={inkSamples};rotation={normalizedRotation};corners={cornerSignature}");
         }
         catch
         {
@@ -104,5 +134,55 @@ internal static class RenderProbe
         }
 
         return samples;
+    }
+
+    private static string ReadCornerSignature(RenderedPdfPage rendered)
+    {
+        var corners = new[]
+        {
+            ReadColor(rendered, 0.1d, 0.1d),
+            ReadColor(rendered, 0.9d, 0.1d),
+            ReadColor(rendered, 0.9d, 0.9d),
+            ReadColor(rendered, 0.1d, 0.9d),
+        };
+        return new string(corners);
+    }
+
+    private static char ReadColor(RenderedPdfPage rendered, double horizontalRatio, double verticalRatio)
+    {
+        var column = Math.Clamp(
+            (int)Math.Round((rendered.PixelWidth - 1u) * horizontalRatio),
+            0,
+            checked((int)rendered.PixelWidth - 1));
+        var row = Math.Clamp(
+            (int)Math.Round((rendered.PixelHeight - 1u) * verticalRatio),
+            0,
+            checked((int)rendered.PixelHeight - 1));
+        var offset = checked((int)((long)row * rendered.Stride + column * 4L));
+        var blue = rendered.BgraBytes[offset];
+        var green = rendered.BgraBytes[offset + 1];
+        var red = rendered.BgraBytes[offset + 2];
+
+        if (red >= 160 && green <= 120 && blue <= 120)
+        {
+            return 'R';
+        }
+
+        if (green >= 160 && red <= 120 && blue <= 120)
+        {
+            return 'G';
+        }
+
+        if (blue >= 160 && red <= 120 && green <= 120)
+        {
+            return 'B';
+        }
+
+        if (red <= 96 && green <= 96 && blue <= 96)
+        {
+            return 'K';
+        }
+
+        return red >= 220 && green >= 220 && blue >= 220 ? 'W' : '?';
     }
 }

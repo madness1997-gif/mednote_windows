@@ -25,6 +25,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     private int _currentPage = 1;
     private int _pageCount;
     private double _zoom = 1d;
+    private int _rotation;
     private PdfFitMode _fitMode = PdfFitMode.Page;
     private PdfViewMode _viewMode = PdfViewMode.Single;
     private PdfTool _activeTool = PdfTool.Pan;
@@ -128,6 +129,12 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     }
 
     public string ZoomLabel => $"{Zoom:P0}";
+
+    public int Rotation
+    {
+        get => _rotation;
+        private set => SetProperty(ref _rotation, value);
+    }
 
     public PdfFitMode FitMode
     {
@@ -253,6 +260,20 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
     }
 
     public void StepZoom(int direction) => SetZoom(ReaderMath.StepZoom(Zoom, direction));
+
+    public void SetRotation(int rotation)
+    {
+        var normalized = ReaderMath.NormalizeRotation(rotation);
+        if (Rotation == normalized)
+        {
+            return;
+        }
+
+        Rotation = normalized;
+        _reader = _reader with { Rotation = normalized };
+        RefreshAllPageLayouts(normalized);
+        QueuePersist();
+    }
 
     public void SetFitMode(PdfFitMode mode)
     {
@@ -427,14 +448,16 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    private void RefreshAllPageLayouts()
+    private void RefreshAllPageLayouts(int? rotation = null)
     {
         foreach (var page in Pages)
         {
-            var layout = CalculatePageLayout(page.AspectRatio);
+            var pageRotation = rotation ?? page.Rotation;
+            var layout = CalculatePageLayout(page.AspectRatioForRotation(pageRotation));
             page.SetLayout(
                 layout.Width,
                 layout.Height,
+                pageRotation,
                 notify: page.IsPinned || ReferenceEquals(page, CurrentPageItem));
         }
     }
@@ -476,6 +499,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
             PageCount = openedSession.PageCount;
             CurrentPage = nextReader.Page;
             Zoom = nextReader.Zoom;
+            Rotation = nextReader.Rotation;
             FitMode = nextReader.FitMode;
             ViewMode = nextReader.ViewMode;
             Bookmarks = nextReader.Bookmarks.ToArray();
@@ -483,7 +507,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
                 .Select(index =>
                 {
                     var metrics = openedSession.PageMetrics[index];
-                    var layout = CalculatePageLayout(metrics.AspectRatio);
+                    var layout = CalculatePageLayout(metrics.AspectRatioForRotation(Rotation));
                     return new PdfPageViewModel(
                         this,
                         openedSession,
@@ -492,6 +516,7 @@ public sealed class ReaderViewModel : ObservableObject, IAsyncDisposable
                         documentId,
                         index,
                         metrics,
+                        Rotation,
                         layout.Width,
                         layout.Height);
                 })

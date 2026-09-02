@@ -47,6 +47,7 @@ jobs:
           $smokePdf = Join-Path $env:RUNNER_TEMP "mednote-render-smoke.pdf"
           $largePdf = Join-Path $env:RUNNER_TEMP "mednote-render-3000-pages.pdf"
           $adversarialPdf = Join-Path $env:RUNNER_TEMP "mednote-adversarial-corpus.pdf"
+          $rotationPdf = Join-Path $env:RUNNER_TEMP "mednote-rotation-corpus.pdf"
           $encryptedPdf = Join-Path $env:RUNNER_TEMP "mednote-encrypted.pdf"
           $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
           [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
@@ -54,6 +55,7 @@ jobs:
           [IO.File]::WriteAllBytes($encryptedPdf, [Convert]::FromBase64String($encryptedBase64))
           & tests/fixtures/New-MixedPagePdf.ps1 -Path $largePdf -PageCount 3000
           & tests/fixtures/New-AdversarialPdfCorpus.ps1 -Path $adversarialPdf
+          & tests/fixtures/New-RotatedPdfCorpus.ps1 -Path $rotationPdf
 
           function Invoke-MedNoteRenderSmoke {
             param(
@@ -63,6 +65,9 @@ jobs:
               [Parameter(Mandatory = $true)][string]$ProbeName,
               [switch]$ExpectSurfaceRecovery,
               [switch]$RequireInk,
+              [int]$Rotation = 0,
+              [ValidateSet("Any", "Portrait", "Landscape")][string]$ExpectedOrientation = "Any",
+              [string]$ExpectedCorners,
               [string]$Password
             )
 
@@ -71,6 +76,7 @@ jobs:
             Remove-Item $renderProbe -Force -ErrorAction SilentlyContinue
             $env:MEDNOTE_RENDER_PROBE = $renderProbe
             $env:MEDNOTE_RENDER_TARGET_PAGE = $TargetPage.ToString()
+            $env:MEDNOTE_RENDER_ROTATION = $Rotation.ToString()
             if ($ExpectSurfaceRecovery) {
               $env:MEDNOTE_SIMULATE_SURFACE_LOSS = "1"
             } else {
@@ -122,18 +128,36 @@ jobs:
 
               $probe = (Get-Content $renderProbe -Raw).Trim()
               Write-Host "PDF render probe: $probe"
-              if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=\d+;height=\d+;bytes=\d+;workingSet=(\d+);elapsedMs=(\d+);presentations=(\d+);inkSamples=(\d+)$') {
+              if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=(\d+);height=(\d+);bytes=\d+;workingSet=(\d+);elapsedMs=(\d+);presentations=(\d+);inkSamples=(\d+);rotation=(\d+);corners=([RGBKW?]{4})$') {
                 throw "Invalid Direct2D render probe: $probe"
               }
 
               $renderedPage = [int]$Matches[1]
               $documentPages = [int]$Matches[2]
-              $workingSet = [long]$Matches[3]
-              $elapsedMilliseconds = [long]$Matches[4]
-              $presentations = [int]$Matches[5]
-              $inkSamples = [int]$Matches[6]
+              $pixelWidth = [int]$Matches[3]
+              $pixelHeight = [int]$Matches[4]
+              $workingSet = [long]$Matches[5]
+              $elapsedMilliseconds = [long]$Matches[6]
+              $presentations = [int]$Matches[7]
+              $inkSamples = [int]$Matches[8]
+              $renderedRotation = [int]$Matches[9]
+              $cornerSignature = $Matches[10]
+              $expectedRotation = (($Rotation % 360) + 360) % 360
+              $expectedRotation = [int]([Math]::Round($expectedRotation / 90.0) * 90) % 360
               if ($renderedPage -ne $TargetPage -or $documentPages -ne $ExpectedPages) {
                 throw "Unexpected rendered page/document count: $renderedPage/$documentPages"
+              }
+              if ($renderedRotation -ne $expectedRotation) {
+                throw "Unexpected Reader rotation: $renderedRotation (expected $expectedRotation)"
+              }
+              if ($ExpectedOrientation -eq "Portrait" -and $pixelWidth -ge $pixelHeight) {
+                throw "Expected portrait bitmap, received ${pixelWidth}x${pixelHeight}"
+              }
+              if ($ExpectedOrientation -eq "Landscape" -and $pixelWidth -le $pixelHeight) {
+                throw "Expected landscape bitmap, received ${pixelWidth}x${pixelHeight}"
+              }
+              if ($ExpectedCorners -and $cornerSignature -ne $ExpectedCorners) {
+                throw "Unexpected corner signature: $cornerSignature (expected $ExpectedCorners)"
               }
               if ($workingSet -gt 805306368) {
                 throw "Working set exceeded the 768 MiB smoke-test ceiling: $workingSet bytes"
@@ -173,8 +197,23 @@ jobs:
             -ProbeName "mednote-render-extreme-box.txt"
           Invoke-MedNoteRenderSmoke -PdfPath $encryptedPdf -TargetPage 1 -ExpectedPages 1 `
             -ProbeName "mednote-render-encrypted.txt" -Password "mednote"
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 1 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-intrinsic-0.txt" -ExpectedOrientation Portrait -ExpectedCorners RGBK
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 2 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-intrinsic-90.txt" -ExpectedOrientation Landscape -ExpectedCorners KRGB
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 3 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-intrinsic-180.txt" -ExpectedOrientation Portrait -ExpectedCorners BKRG
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 4 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-intrinsic-270.txt" -ExpectedOrientation Landscape -ExpectedCorners GBKR
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 1 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-reader-90.txt" -Rotation 90 -ExpectedOrientation Landscape -ExpectedCorners KRGB
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 1 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-reader-180.txt" -Rotation 180 -ExpectedOrientation Portrait -ExpectedCorners BKRG
+          Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 1 -ExpectedPages 4 `
+            -ProbeName "mednote-rotation-reader-270.txt" -Rotation 270 -ExpectedOrientation Landscape -ExpectedCorners GBKR
           Remove-Item Env:MEDNOTE_RENDER_PROBE -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
+          Remove-Item Env:MEDNOTE_RENDER_ROTATION -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
       - name: Verify native artifact boundary

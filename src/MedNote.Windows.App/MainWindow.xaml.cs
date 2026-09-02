@@ -99,6 +99,11 @@ public sealed partial class MainWindow : Window
             try
             {
                 await ViewModel.OpenDocumentAsync(path, password);
+                if (RenderProbe.StartupRotation is { } startupRotation)
+                {
+                    ViewModel.SetRotation(startupRotation);
+                }
+
                 ApplyViewModelState();
                 var probePage = RenderProbe.TargetPage(ViewModel.PageCount);
                 if (probePage is not null)

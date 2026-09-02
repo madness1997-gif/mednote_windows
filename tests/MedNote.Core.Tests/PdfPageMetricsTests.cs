@@ -27,4 +27,17 @@ public sealed class PdfPageMetricsTests
 
         Assert.AreEqual(1d / Math.Sqrt(2d), metrics.AspectRatio, 0.000000000001d);
     }
+
+    [TestMethod]
+    [DataRow(0, 0.7727272727d)]
+    [DataRow(90, 1.2941176471d)]
+    [DataRow(180, 0.7727272727d)]
+    [DataRow(270, 1.2941176471d)]
+    [DataRow(-90, 1.2941176471d)]
+    public void AspectRatioForRotation_SwapsOnlyQuarterTurns(int rotation, double expected)
+    {
+        var metrics = new PdfPageMetrics(612d, 792d);
+
+        Assert.AreEqual(expected, metrics.AspectRatioForRotation(rotation), 0.00000001d);
+    }
 }

@@ -46,4 +46,15 @@ public sealed class ReaderStateTests
         Assert.AreEqual(250d, ReaderMath.ContinuousAnchorCorrection(-150d, 1_000d, 0.4d), 0.000_001d);
         Assert.AreEqual(-150d, ReaderMath.ContinuousAnchorCorrection(-150d, 1_000d, -1d), 0.000_001d);
     }
+
+    [TestMethod]
+    [DataRow(-91, 270)]
+    [DataRow(44, 0)]
+    [DataRow(45, 0)]
+    [DataRow(225, 180)]
+    [DataRow(450, 90)]
+    public void NormalizeRotation_SnapsToClockwiseQuarterTurns(int rotation, int expected)
+    {
+        Assert.AreEqual(expected, ReaderMath.NormalizeRotation(rotation));
+    }
 }

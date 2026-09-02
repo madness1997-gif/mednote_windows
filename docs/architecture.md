@@ -45,6 +45,9 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
   `CompositionTarget.SurfaceContentsLost`; realized presenters rebuild their
   GPU surfaces from the budgeted managed BGRA buffer without rasterizing the
   PDF again.
+- Treats PDFium page metrics as already containing the page dictionary's
+  intrinsic `/Rotate`, then applies the normalized Reader rotation to layout,
+  raster dimensions, cache validity, and `FPDF_RenderPageBitmap` together.
 - Persists state atomically under `%LOCALAPPDATA%\MedNote Reader`.
 
 ## Renderer strategy
@@ -83,3 +86,5 @@ adapter boundary. See `docs/decisions/0001-pdfium-backend.md`.
    through Direct2D within 45 seconds and below a 768 MiB process working set.
 10. CI must force one surface-recreation cycle and render adversarial table,
     scan-like, invalid-box, extreme-ratio, and password-protected fixtures.
+11. CI must verify portrait/landscape dimensions and four asymmetric corner
+    markers for intrinsic and Reader rotations of 0/90/180/270 degrees.

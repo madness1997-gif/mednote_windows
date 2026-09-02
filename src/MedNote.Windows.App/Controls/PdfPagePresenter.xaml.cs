@@ -54,10 +54,16 @@ public sealed partial class PdfPagePresenter : UserControl
     {
         if (e.PropertyName == nameof(PdfPageViewModel.Surface))
         {
-            PresentSurface((sender as PdfPageViewModel)?.Surface);
+            var surface = (sender as PdfPageViewModel)?.Surface;
+            PresentSurface(surface);
+            if (IsLoaded && surface is null)
+            {
+                RequestRender();
+            }
         }
         else if (IsLoaded && e.PropertyName is nameof(PdfPageViewModel.DisplayWidth)
-            or nameof(PdfPageViewModel.DisplayHeight))
+            or nameof(PdfPageViewModel.DisplayHeight)
+            or nameof(PdfPageViewModel.Rotation))
         {
             RequestRender();
         }
@@ -152,7 +158,11 @@ public sealed partial class PdfPagePresenter : UserControl
             if (_boundPage is not null)
             {
                 _boundPage.ReportPresentationSucceeded();
-                if (RenderProbe.SignalPagePresented(_boundPage.Number, _boundPage.OwnerPageCount, surface))
+                if (RenderProbe.SignalPagePresented(
+                    _boundPage.Number,
+                    _boundPage.OwnerPageCount,
+                    _boundPage.Rotation,
+                    surface))
                 {
                     Direct2DPageSurfaceFactory.RequestSurfaceRecreation();
                 }

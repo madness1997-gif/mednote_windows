@@ -48,14 +48,12 @@ public sealed record ReaderState
     public ReaderState Normalize(int pageCount)
     {
         var maximumPage = Math.Max(1, pageCount);
-        var normalizedRotation = ((Rotation % 360) + 360) % 360;
-        normalizedRotation = (int)Math.Round(normalizedRotation / 90d) * 90 % 360;
 
         return this with
         {
             Page = ReaderMath.ClampPage(Page, maximumPage),
             Zoom = ReaderMath.ClampZoom(Zoom),
-            Rotation = normalizedRotation,
+            Rotation = ReaderMath.NormalizeRotation(Rotation),
             Bookmarks = Bookmarks
                 .Where(page => page >= 1 && page <= maximumPage)
                 .Distinct()
@@ -90,6 +88,12 @@ public static class ReaderMath
     public static int ClampPage(int page, int pageCount) => Math.Clamp(page, 1, Math.Max(1, pageCount));
 
     public static double ClampZoom(double zoom) => Math.Clamp(double.IsFinite(zoom) ? zoom : 1d, MinimumZoom, MaximumZoom);
+
+    public static int NormalizeRotation(int rotation)
+    {
+        var normalized = ((rotation % 360) + 360) % 360;
+        return (int)Math.Round(normalized / 90d) * 90 % 360;
+    }
 
     public static double StepZoom(double zoom, int direction)
     {

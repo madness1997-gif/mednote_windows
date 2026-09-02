@@ -14,10 +14,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     private RenderedPdfPage? _surface;
     private double _displayWidth;
     private double _displayHeight;
+    private int _rotation;
     private bool _isRendering;
     private bool _isPinned;
     private string? _error;
     private uint _renderedPixelWidth;
+    private int _renderedRotation = -1;
     private long _renderGeneration;
     private bool _disposed;
 
@@ -29,6 +31,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         string documentId,
         int pageIndex,
         PdfPageMetrics metrics,
+        int rotation,
         double displayWidth,
         double displayHeight)
     {
@@ -37,6 +40,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         _bitmapBudget = bitmapBudget;
         _renderScheduler = renderScheduler;
         _metrics = metrics;
+        _rotation = ReaderMath.NormalizeRotation(rotation);
         _displayWidth = displayWidth;
         _displayHeight = displayHeight;
         PageIndex = pageIndex;
@@ -58,17 +62,11 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _surface, value);
     }
 
-    public double DisplayWidth
-    {
-        get => _displayWidth;
-        private set => SetProperty(ref _displayWidth, value);
-    }
+    public double DisplayWidth => _displayWidth;
 
-    public double DisplayHeight
-    {
-        get => _displayHeight;
-        private set => SetProperty(ref _displayHeight, value);
-    }
+    public double DisplayHeight => _displayHeight;
+
+    public int Rotation => _rotation;
 
     public bool IsRendering
     {
@@ -96,34 +94,64 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
 
     public double ErrorOpacity => string.IsNullOrWhiteSpace(Error) ? 0d : 1d;
 
-    public double AspectRatio => _metrics.AspectRatio;
+    public double AspectRatio => _metrics.AspectRatioForRotation(Rotation);
 
-    public void SetLayout(double width, double height, bool notify)
+    internal double AspectRatioForRotation(int rotation) => _metrics.AspectRatioForRotation(rotation);
+
+    public void SetLayout(double width, double height, bool notify) =>
+        SetLayout(width, height, Rotation, notify);
+
+    internal void SetLayout(double width, double height, int rotation, bool notify)
     {
         width = Math.Max(180d, width);
         height = Math.Max(240d, height);
-        var widthChanged = Math.Abs(DisplayWidth - width) > 0.5d;
-        var heightChanged = Math.Abs(DisplayHeight - height) > 0.5d;
-        if (!widthChanged && !heightChanged)
+        rotation = ReaderMath.NormalizeRotation(rotation);
+        var widthChanged = Math.Abs(_displayWidth - width) > 0.5d;
+        var heightChanged = Math.Abs(_displayHeight - height) > 0.5d;
+        var rotationChanged = _rotation != rotation;
+        if (!widthChanged && !heightChanged && !rotationChanged)
         {
             return;
         }
 
-        if (notify)
+        if (rotationChanged)
         {
-            DisplayWidth = width;
-            DisplayHeight = height;
-        }
-        else
-        {
-            _displayWidth = width;
-            _displayHeight = height;
+            _renderCancellation?.Cancel();
+            _renderGeneration++;
+            IsRendering = false;
+            Error = null;
         }
 
+        _displayWidth = width;
+        _displayHeight = height;
+        _rotation = rotation;
+
         var desiredPixelWidth = DesiredPixelSize().Width;
-        if (Surface is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) > 0.16d)
+        if (Surface is not null
+            && (rotationChanged || RelativeDifference(_renderedPixelWidth, desiredPixelWidth) > 0.16d))
         {
             EvictSurface();
+        }
+
+        if (!notify)
+        {
+            return;
+        }
+
+        if (widthChanged)
+        {
+            OnPropertyChanged(nameof(DisplayWidth));
+        }
+
+        if (heightChanged)
+        {
+            OnPropertyChanged(nameof(DisplayHeight));
+        }
+
+        if (rotationChanged)
+        {
+            OnPropertyChanged(nameof(Rotation));
+            OnPropertyChanged(nameof(AspectRatio));
         }
     }
 
@@ -152,9 +180,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     public async Task EnsureRenderedAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var rotation = Rotation;
         var desiredPixelSize = DesiredPixelSize();
         var desiredPixelWidth = desiredPixelSize.Width;
-        if (Surface is not null && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) <= 0.16d)
+        if (Surface is not null
+            && _renderedRotation == rotation
+            && RelativeDifference(_renderedPixelWidth, desiredPixelWidth) <= 0.16d)
         {
             _bitmapBudget.Touch(_cacheKey);
             return;
@@ -174,11 +205,15 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
             var rendered = await _renderScheduler.RunAsync(
                 estimatedBytes,
                 renderToken => _session.RenderPageAsync(
-                    new PdfRenderRequest(PageIndex, desiredPixelWidth, desiredPixelSize.Height),
+                    new PdfRenderRequest(
+                        PageIndex,
+                        desiredPixelWidth,
+                        desiredPixelSize.Height,
+                        rotation),
                     renderToken),
                 token);
             token.ThrowIfCancellationRequested();
-            if (generation != _renderGeneration || !IsPinned)
+            if (generation != _renderGeneration || rotation != Rotation || !IsPinned)
             {
                 return;
             }
@@ -188,8 +223,9 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
                 throw new InvalidDataException($"Buffer BGRA của trang {Number} không hợp lệ.");
             }
 
-            Surface = rendered;
             _renderedPixelWidth = rendered.PixelWidth;
+            _renderedRotation = rotation;
+            Surface = rendered;
             _bitmapBudget.Report(
                 _cacheKey,
                 rendered.EstimatedResidentBytes,
@@ -235,6 +271,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         _bitmapBudget.Remove(_cacheKey);
         Surface = null;
         _renderedPixelWidth = 0;
+        _renderedRotation = -1;
     }
 
     private static double RelativeDifference(uint left, uint right) =>

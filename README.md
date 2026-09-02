@@ -22,6 +22,8 @@ The first vertical slice already contains:
 - one-pass page-metrics discovery and a packaged-app smoke benchmark that jumps
   directly to page 1,500 of a generated 3,000-page mixed-size PDF;
 - password-protected PDF opening without persisting the password;
+- intrinsic PDF page rotation plus persisted Reader rotation through the
+  PDFium render and Direct2D layout path;
 - packaged adversarial PDF gates for vector tables, scan-like images, broken
   page boxes, extreme aspect ratios, and encrypted documents;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
@@ -51,6 +53,8 @@ The PDFium selection and threading boundary are recorded in
 [ADR 0001](docs/decisions/0001-pdfium-backend.md).
 The Direct2D resource lifecycle is recorded in
 [ADR 0002](docs/decisions/0002-direct2d-surface-lifecycle.md).
+Page rotation ownership and rendering are recorded in
+[ADR 0003](docs/decisions/0003-pdf-page-rotation.md).
 
 ## Build
 
