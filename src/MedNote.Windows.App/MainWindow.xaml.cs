@@ -104,20 +104,11 @@ public sealed partial class MainWindow : Window
                     ViewModel.SetRotation(startupRotation);
                 }
 
-                var soakSequence = RenderProbe.TargetSequence(ViewModel.PageCount);
-                if (soakSequence.Count > 0)
-                {
-                    ViewModel.SetViewMode(PdfViewMode.Single);
-                }
-
                 ApplyViewModelState();
-                if (soakSequence.Count > 0)
+                var probePage = RenderProbe.TargetPage(ViewModel.PageCount);
+                if (probePage is not null)
                 {
-                    await RunRenderSoakAsync(soakSequence);
-                }
-                else if (RenderProbe.TargetPage(ViewModel.PageCount) is { } probePage)
-                {
-                    NavigateToPage(probePage, true);
+                    NavigateToPage(probePage.Value, true);
                 }
                 else
                 {
@@ -139,27 +130,6 @@ public sealed partial class MainWindow : Window
                 await ShowErrorAsync("Không mở được PDF", exception.Message);
                 return;
             }
-        }
-    }
-
-    private async Task RunRenderSoakAsync(IReadOnlyList<int> sequence)
-    {
-        var snapshots = new List<RenderProbeSnapshot>(sequence.Count);
-        try
-        {
-            foreach (var targetPage in sequence)
-            {
-                RenderProbe.BeginSoakTarget(targetPage);
-                NavigateToPage(targetPage, true);
-                Direct2DPageSurfaceFactory.RequestSurfaceRecreation();
-                snapshots.Add(await RenderProbe.WaitForSoakTargetAsync(TimeSpan.FromSeconds(20)));
-            }
-
-            RenderProbe.CompleteSoak(ViewModel.PageCount, snapshots);
-        }
-        catch (Exception exception)
-        {
-            RenderProbe.FailSoak(exception);
         }
     }
 

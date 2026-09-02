@@ -88,9 +88,3 @@ adapter boundary. See `docs/decisions/0001-pdfium-backend.md`.
     scan-like, invalid-box, extreme-ratio, and password-protected fixtures.
 11. CI must verify portrait/landscape dimensions and four asymmetric corner
     markers for intrinsic and Reader rotations of 0/90/180/270 degrees.
-12. CI must download the pinned PDFium regression corpus only after validating
-    each fixture against its manifest SHA-256, and the corpus must not enter the
-    shipped application artifact.
-13. CI must revisit distant pages in one Reader process to exercise render
-    cancellation, bitmap eviction, and Direct2D surface recreation under the
-    768 MiB working-set ceiling; the scheduled weekly run uses a longer sequence.

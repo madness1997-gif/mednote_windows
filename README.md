@@ -26,8 +26,6 @@ The first vertical slice already contains:
   PDFium render and Direct2D layout path;
 - packaged adversarial PDF gates for vector tables, scan-like images, broken
   page boxes, extreme aspect ratios, and encrypted documents;
-- a checksum-locked upstream PDFium regression corpus plus bounded per-commit
-  and extended weekly single-process render soaks;
 - opaque preservation of existing web PDF annotations during JSON round-trips.
 
 The M2 backend now implements renderer-independent PDF outline destinations,
