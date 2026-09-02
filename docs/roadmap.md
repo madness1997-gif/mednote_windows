@@ -33,7 +33,7 @@
 - [x] generated mixed-page-size 3,000-page CI fixture;
 - [x] generated adversarial CI corpus: tables, scan-like images, invalid page
   boxes, extreme ratios, and encrypted PDF;
-- [ ] real-world test corpus: scans, tables, malformed boxes, and encrypted PDFs.
+- [x] checksum-locked upstream PDF corpus for images/scans, tables, malformed boxes, and encrypted PDFs; bounded per-commit soak plus an extended weekly renderer soak.
 
 ## M3 — Reader annotations
 

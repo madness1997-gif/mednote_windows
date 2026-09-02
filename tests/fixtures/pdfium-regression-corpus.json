@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "chromium/pdfium",
+    "commit": "a84323421e94f484faca52dd9d027934eba42ab8",
+    "license": "See pinned upstream LICENSE (BSD-3-Clause and Apache-2.0 notices)",
+    "licenseUrl": "https://raw.githubusercontent.com/chromium/pdfium/a84323421e94f484faca52dd9d027934eba42ab8/LICENSE"
+  },
+  "documents": [
+    {
+      "id": "embedded-images",
+      "fileName": "pdfium-embedded-images.pdf",
+      "description": "Microsoft Word document with embedded raster images",
+      "url": "https://raw.githubusercontent.com/chromium/pdfium/a84323421e94f484faca52dd9d027934eba42ab8/testing/resources/embedded_images.pdf",
+      "sha256": "13e3286f1fa7af8e762eaf013ef3f7ab4822776062fcec9a12c3f34aeb8982c2",
+      "expectedPages": 1,
+      "targetPage": 1,
+      "requireInk": true
+    },
+    {
+      "id": "large-table",
+      "fileName": "pdfium-bigtable-mini.pdf",
+      "description": "Reduced upstream regression with a large vector table",
+      "url": "https://raw.githubusercontent.com/chromium/pdfium/a84323421e94f484faca52dd9d027934eba42ab8/testing/resources/bigtable_mini.pdf",
+      "sha256": "1b99b3a7f841e08e8177a97ca379a6b556355cd2616679534fbe8ff6e9f6ddf6",
+      "expectedPages": 1,
+      "targetPage": 1,
+      "requireInk": true
+    },
+    {
+      "id": "cropped-page-boxes",
+      "fileName": "pdfium-cropped-text.pdf",
+      "description": "Four pages with differing CropBox and MediaBox geometry",
+      "url": "https://raw.githubusercontent.com/chromium/pdfium/a84323421e94f484faca52dd9d027934eba42ab8/testing/resources/cropped_text.pdf",
+      "sha256": "1e2a6b5f13c77d8c0611ac7fcde88cd28352c7c0eb8a36bc593e2d91ef3c4ccc",
+      "expectedPages": 4,
+      "targetPage": 2,
+      "requireInk": true
+    },
+    {
+      "id": "aes-encrypted",
+      "fileName": "pdfium-encrypted.pdf",
+      "description": "AES-encrypted Acrobat Web Capture document",
+      "url": "https://raw.githubusercontent.com/chromium/pdfium/a84323421e94f484faca52dd9d027934eba42ab8/testing/resources/encrypted.pdf",
+      "sha256": "cbbead7185d9cd46daecaf60165a9aa7b9f2daceb3623218c328cb015ae862d5",
+      "expectedPages": 1,
+      "targetPage": 1,
+      "requireInk": true,
+      "password": "1234"
+    }
+  ]
+}

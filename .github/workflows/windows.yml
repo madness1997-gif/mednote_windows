@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 18 * * 0"
 
 permissions:
   contents: write
@@ -29,6 +31,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Restore PDFium regression corpus cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mednote-pdfium-corpus
+          key: pdfium-regression-corpus-${{ hashFiles('tests/fixtures/pdfium-regression-corpus.json') }}
+      - name: Download and verify PDFium regression corpus
+        shell: pwsh
+        run: >-
+          & tests/fixtures/Get-PdfiumRegressionCorpus.ps1
+          -OutputDirectory (Join-Path $env:RUNNER_TEMP "mednote-pdfium-corpus")
       - name: Restore Windows solution
         run: dotnet restore MedNote.Windows.sln -p:Platform=x64
       - name: Test native core
@@ -49,6 +61,8 @@ jobs:
           $adversarialPdf = Join-Path $env:RUNNER_TEMP "mednote-adversarial-corpus.pdf"
           $rotationPdf = Join-Path $env:RUNNER_TEMP "mednote-rotation-corpus.pdf"
           $encryptedPdf = Join-Path $env:RUNNER_TEMP "mednote-encrypted.pdf"
+          $corpusRoot = Join-Path $env:RUNNER_TEMP "mednote-pdfium-corpus"
+          $corpusManifest = Get-Content tests/fixtures/pdfium-regression-corpus.json -Raw | ConvertFrom-Json
           $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
           [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
           $encryptedBase64 = (Get-Content tests/fixtures/encrypted-password-mednote.pdf.base64 -Raw).Trim()
@@ -77,6 +91,7 @@ jobs:
             $env:MEDNOTE_RENDER_PROBE = $renderProbe
             $env:MEDNOTE_RENDER_TARGET_PAGE = $TargetPage.ToString()
             $env:MEDNOTE_RENDER_ROTATION = $Rotation.ToString()
+            Remove-Item Env:MEDNOTE_RENDER_SEQUENCE -ErrorAction SilentlyContinue
             if ($ExpectSurfaceRecovery) {
               $env:MEDNOTE_SIMULATE_SURFACE_LOSS = "1"
             } else {
@@ -183,6 +198,88 @@ jobs:
             }
           }
 
+          function Invoke-MedNoteRenderSoak {
+            param(
+              [Parameter(Mandatory = $true)][string]$PdfPath,
+              [Parameter(Mandatory = $true)][int[]]$Sequence,
+              [Parameter(Mandatory = $true)][int]$ExpectedPages,
+              [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+            )
+
+            $renderProbe = Join-Path $env:RUNNER_TEMP "mednote-render-soak.txt"
+            Remove-Item $renderProbe -Force -ErrorAction SilentlyContinue
+            $env:MEDNOTE_RENDER_PROBE = $renderProbe
+            $env:MEDNOTE_RENDER_SEQUENCE = $Sequence -join ','
+            $env:MEDNOTE_RENDER_ROTATION = "0"
+            Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
+            Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
+            Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
+            $process = Start-Process artifacts/MedNote-Reader-Windows/MedNote.Reader.exe `
+              -ArgumentList "`"$PdfPath`"" -PassThru
+
+            try {
+              $completed = $false
+              foreach ($attempt in 1..$TimeoutSeconds) {
+                Start-Sleep -Seconds 1
+                if ($process.HasExited) { break }
+                if (Test-Path $renderProbe) {
+                  $completed = $true
+                  break
+                }
+              }
+
+              if ($process.HasExited) {
+                $startupLog = Join-Path $env:LOCALAPPDATA "MedNote Reader/startup-crash.log"
+                if (Test-Path $startupLog) {
+                  Write-Host "--- MedNote soak crash log ---"
+                  Get-Content $startupLog
+                }
+                throw "MedNote.Reader.exe exited during render soak with code $($process.ExitCode)"
+              }
+              if (-not $completed) {
+                throw "MedNote render soak did not finish within $TimeoutSeconds seconds"
+              }
+
+              $probe = (Get-Content $renderProbe -Raw).Trim()
+              Write-Host "PDF render soak probe: $probe"
+              if ($probe -notmatch '^surface=direct2d;soak=complete;pages=(\d+);targets=(\d+);uniquePages=(\d+);peakWorkingSet=(\d+);elapsedMs=(\d+);inkTargets=(\d+);sequence=([\d,]+)$') {
+                throw "Invalid Direct2D render soak probe: $probe"
+              }
+
+              $documentPages = [int]$Matches[1]
+              $targetCount = [int]$Matches[2]
+              $uniquePages = [int]$Matches[3]
+              $peakWorkingSet = [long]$Matches[4]
+              $elapsedMilliseconds = [long]$Matches[5]
+              $renderedSequence = [int[]]($Matches[7] -split ',')
+              $expectedUniquePages = @($Sequence | Sort-Object -Unique).Count
+              if ($documentPages -ne $ExpectedPages) {
+                throw "Unexpected soak document page count: $documentPages"
+              }
+              if ($targetCount -ne $Sequence.Count -or $uniquePages -ne $expectedUniquePages) {
+                throw "Render soak missed targets: $targetCount targets and $uniquePages unique pages"
+              }
+              if (($renderedSequence -join ',') -ne ($Sequence -join ',')) {
+                throw "Render soak sequence changed: $($renderedSequence -join ',')"
+              }
+              if ($peakWorkingSet -gt 805306368) {
+                throw "Render soak working set exceeded 768 MiB: $peakWorkingSet bytes"
+              }
+              if ($elapsedMilliseconds -gt ($TimeoutSeconds * 1000)) {
+                throw "Render soak exceeded its time ceiling: $elapsedMilliseconds ms"
+              }
+
+              $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)"
+              if ($children) {
+                throw "Unexpected child process(es) during soak: $($children.Name -join ', ')"
+              }
+            } finally {
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
+            }
+          }
+
           Invoke-MedNoteRenderSmoke -PdfPath $smokePdf -TargetPage 1 -ExpectedPages 1 `
             -ProbeName "mednote-render-small.txt" -ExpectSurfaceRecovery
           Invoke-MedNoteRenderSmoke -PdfPath $largePdf -TargetPage 1500 -ExpectedPages 3000 `
@@ -211,8 +308,37 @@ jobs:
             -ProbeName "mednote-rotation-reader-180.txt" -Rotation 180 -ExpectedOrientation Portrait -ExpectedCorners BKRG
           Invoke-MedNoteRenderSmoke -PdfPath $rotationPdf -TargetPage 1 -ExpectedPages 4 `
             -ProbeName "mednote-rotation-reader-270.txt" -Rotation 270 -ExpectedOrientation Landscape -ExpectedCorners GBKR
+
+          foreach ($document in $corpusManifest.documents) {
+            $smokeArguments = @{
+              PdfPath = Join-Path $corpusRoot $document.fileName
+              TargetPage = [int]$document.targetPage
+              ExpectedPages = [int]$document.expectedPages
+              ProbeName = "mednote-pdfium-$($document.id).txt"
+            }
+            if ($document.requireInk) {
+              $smokeArguments.RequireInk = $true
+            }
+            if ($document.password) {
+              $smokeArguments.Password = [string]$document.password
+            }
+            Invoke-MedNoteRenderSmoke @smokeArguments
+          }
+
+          $soakSeed = @(1, 1500, 3000, 2, 2999, 64, 2048, 512)
+          $soakCycles = if ($env:GITHUB_EVENT_NAME -eq "schedule") { 8 } else { 3 }
+          $soakSequence = @(
+            foreach ($cycle in 1..$soakCycles) {
+              $soakSeed
+            }
+          )
+          $soakTimeout = if ($env:GITHUB_EVENT_NAME -eq "schedule") { 600 } else { 180 }
+          Invoke-MedNoteRenderSoak -PdfPath $largePdf -Sequence $soakSequence `
+            -ExpectedPages 3000 -TimeoutSeconds $soakTimeout
+
           Remove-Item Env:MEDNOTE_RENDER_PROBE -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
+          Remove-Item Env:MEDNOTE_RENDER_SEQUENCE -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_RENDER_ROTATION -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
