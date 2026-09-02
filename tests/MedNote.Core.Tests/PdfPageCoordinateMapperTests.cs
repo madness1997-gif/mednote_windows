@@ -6,7 +6,7 @@ namespace MedNote.Core.Tests;
 [TestClass]
 public sealed class PdfPageCoordinateMapperTests
 {
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(0)]
     [DataRow(90)]
     [DataRow(180)]
