@@ -172,9 +172,16 @@ jobs:
                 throw "Rendered corpus page contains no sampled non-white pixels"
               }
 
-              $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)"
-              if ($children) {
-                throw "Unexpected child process(es): $($children.Name -join ', ')"
+              # Query child processes only while the exact app process is still alive.
+              # The hosted Windows runner can recycle a just-exited PID for system
+              # processes between the render probe and this diagnostic check.
+              $process.Refresh()
+              if (-not $process.HasExited) {
+                $children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)"
+                $process.Refresh()
+                if (-not $process.HasExited -and $children) {
+                  throw "Unexpected child process(es): $($children.Name -join ', ')"
+                }
               }
             } finally {
               if (-not $process.HasExited) {
