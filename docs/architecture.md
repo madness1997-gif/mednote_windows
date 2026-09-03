@@ -30,6 +30,7 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 - Owns persisted contracts and invariants.
 - Owns deterministic document identity.
 - Owns pure navigation, virtualization, bitmap-budget, text-cache, and search algorithms.
+- Owns web-compatible annotation records, edit history and coordinate mapping.
 - Exposes PDF interfaces in terms of page metrics, rendered bytes, outline nodes, text, and rectangles.
 
 ### MedNote.Windows.App
@@ -49,6 +50,8 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
   intrinsic `/Rotate`, then applies the normalized Reader rotation to layout,
   raster dimensions, cache validity, and `FPDF_RenderPageBitmap` together.
 - Persists state atomically under `%LOCALAPPDATA%\MedNote Reader`.
+- Draws annotation overlays only for realized pages and asks PDFium to flatten
+  them into independent exported copies.
 
 ## Renderer strategy
 
@@ -96,3 +99,5 @@ adapter boundary. See `docs/decisions/0001-pdfium-backend.md`.
     scan-like, invalid-box, extreme-ratio, and password-protected fixtures.
 11. CI must verify portrait/landscape dimensions and four asymmetric corner
     markers for intrinsic and Reader rotations of 0/90/180/270 degrees.
+12. Annotation geometry remains in PDF coordinates and must not be rewritten
+    by zoom, viewport, DPI, fit-mode or Reader-rotation changes.

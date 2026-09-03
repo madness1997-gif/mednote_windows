@@ -471,7 +471,12 @@
                                 Text="{x:Bind ViewModel.DocumentName, Mode=OneWay}"
                                 TextTrimming="CharacterEllipsis" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="1">
-                                <Button Style="{StaticResource ToolbarButtonStyle}" IsEnabled="False" ToolTipService.ToolTip="Xuất PDF">
+                                <Button
+                                    x:Name="ExportPdfButton"
+                                    Click="OnExportClicked"
+                                    IsEnabled="False"
+                                    Style="{StaticResource ToolbarButtonStyle}"
+                                    ToolTipService.ToolTip="Xuất PDF phẳng có chú thích">
                                     <FontIcon FontSize="16" Glyph="&#xE896;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolbarButtonStyle}" IsEnabled="False" ToolTipService.ToolTip="In">
@@ -549,21 +554,9 @@
 
                         <Border Grid.Row="1" Background="#FFEDF2F3" />
 
-                        <Grid Grid.Row="2" ColumnSpacing="3">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="2">
                             <ToggleButton
                                 x:Name="PanToolButton"
-                                Grid.Column="0"
                                 Click="OnPanToolClicked"
                                 IsChecked="True"
                                 Style="{StaticResource ToolbarToggleStyle}"
@@ -575,25 +568,53 @@
                             </ToggleButton>
                             <ToggleButton
                                 x:Name="SelectToolButton"
-                                Grid.Column="1"
                                 Click="OnSelectToolClicked"
                                 Content="Chọn"
                                 Style="{StaticResource ToolbarToggleStyle}"
                                 ToolTipService.ToolTip="Chọn văn bản" />
-                            <Button Grid.Column="2" Content="Bút" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Bút" />
-                            <Button Grid.Column="3" Content="Tô sáng" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Tô sáng" />
-                            <Button Grid.Column="4" Content="Gạch chân" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Gạch chân" />
-                            <Button Grid.Column="5" Content="Ghi chú" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Ghi chú" />
-                            <Button Grid.Column="6" Content="Hình" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Hình dạng" />
-                            <StackPanel Grid.Column="8" Orientation="Horizontal" Spacing="2">
-                                <Button IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Hoàn tác">
+                            <ToggleButton x:Name="PenToolButton" Click="OnPenToolClicked" Content="Bút" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Viết tự do trên PDF" />
+                            <ToggleButton x:Name="EraserToolButton" Click="OnEraserToolClicked" Content="Tẩy" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Tẩy annotation chạm vào" />
+                            <ToggleButton x:Name="HighlightToolButton" Click="OnHighlightToolClicked" Content="Tô chữ" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Chọn chữ để tô sáng" />
+                            <ToggleButton x:Name="AreaHighlightToolButton" Click="OnAreaHighlightToolClicked" Content="Tô vùng" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Kéo khung trên hình, bảng hoặc PDF scan" />
+                            <ToggleButton x:Name="UnderlineToolButton" Click="OnUnderlineToolClicked" Content="Chân" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Chọn chữ để gạch chân" />
+                            <ToggleButton x:Name="StrikeoutToolButton" Click="OnStrikeoutToolClicked" Content="Ngang" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Chọn chữ để gạch ngang" />
+                            <ToggleButton x:Name="SquigglyToolButton" Click="OnSquigglyToolClicked" Content="Lượn" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Chọn chữ để gạch lượn sóng" />
+                            <ToggleButton x:Name="RectangleToolButton" Click="OnRectangleToolClicked" Content="□" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Vẽ hình chữ nhật" />
+                            <ToggleButton x:Name="EllipseToolButton" Click="OnEllipseToolClicked" Content="○" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Vẽ hình ellipse" />
+                            <ToggleButton x:Name="ArrowToolButton" Click="OnArrowToolClicked" Content="→" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Vẽ mũi tên" />
+                            <ToggleButton x:Name="CropToolButton" Click="OnCropToolClicked" Content="Cắt" IsEnabled="False" Style="{StaticResource ToolbarToggleStyle}" ToolTipService.ToolTip="Crop vùng PDF cho Note" />
+                            <Button Content="Màu" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Màu annotation">
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#1c2933" Text="Đen" />
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#c94b50" Text="Đỏ" />
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#0e6b70" Text="Xanh ngọc" />
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#2f6fbe" Text="Xanh dương" />
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#f6d96b" Text="Vàng" />
+                                        <MenuFlyoutItem Click="OnAnnotationColorClicked" Tag="#8f63b8" Text="Tím" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <Button Content="Nét" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Độ dày nét">
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Click="OnAnnotationWidthClicked" Tag="1" Text="1 px" />
+                                        <MenuFlyoutItem Click="OnAnnotationWidthClicked" Tag="2" Text="2 px" />
+                                        <MenuFlyoutItem Click="OnAnnotationWidthClicked" Tag="3" Text="3 px" />
+                                        <MenuFlyoutItem Click="OnAnnotationWidthClicked" Tag="5" Text="5 px" />
+                                        <MenuFlyoutItem Click="OnAnnotationWidthClicked" Tag="8" Text="8 px" />
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="2">
+                                <Button x:Name="UndoAnnotationButton" Click="OnUndoAnnotationClicked" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Hoàn tác chú thích (Ctrl+Z)">
                                     <FontIcon FontSize="16" Glyph="&#xE7A7;" />
                                 </Button>
-                                <Button IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Làm lại">
+                                <Button x:Name="RedoAnnotationButton" Click="OnRedoAnnotationClicked" IsEnabled="False" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Làm lại chú thích (Ctrl+Y)">
                                     <FontIcon FontSize="16" Glyph="&#xE7A6;" />
                                 </Button>
                             </StackPanel>
-                        </Grid>
+                        </StackPanel>
                     </Grid>
                 </Border>
 

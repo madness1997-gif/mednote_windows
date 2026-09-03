@@ -24,7 +24,7 @@ The following JSON fields retain their web names and values:
 | `rotation` | preserved and normalized |
 | `viewMode` | `single` or `continuous` |
 | `bookmarks` | read/write |
-| `annotations` | preserved as opaque JSON until native annotation tools land |
+| `annotations` | typed native editing with exact web v6 kind/field names; unknown records and fields remain opaque and preserved |
 
 The native-only `position` extension stores an anchor page, a normalized offset within that page, and horizontal offset. It does not alter the existing v6 Reader payload.
 

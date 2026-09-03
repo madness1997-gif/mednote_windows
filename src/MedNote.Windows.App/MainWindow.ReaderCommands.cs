@@ -179,6 +179,18 @@ public sealed partial class MainWindow
             return;
         }
 
+        if (controlDown && e.Key == VirtualKey.Z)
+        {
+            e.Handled = ViewModel.UndoAnnotations();
+            return;
+        }
+
+        if (controlDown && e.Key == VirtualKey.Y)
+        {
+            e.Handled = ViewModel.RedoAnnotations();
+            return;
+        }
+
         if (controlDown && e.Key == VirtualKey.C && CopySelectedText())
         {
             e.Handled = true;

@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private ReaderWindowStateController? _state;
     private ReaderSidebarController? _sidebar;
     private ReaderSearchDebouncer? _search;
+    private ReaderAnnotationController? _annotations;
     private bool _initializingControls = true;
     private bool _initialized;
 
@@ -62,6 +63,25 @@ public sealed partial class MainWindow : Window
             SearchTabButton,
             BookmarksTabButton);
         _search = new ReaderSearchDebouncer(ViewModel, DispatcherQueue);
+        _annotations = new ReaderAnnotationController(
+            ViewModel,
+            new Dictionary<PdfTool, Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>
+            {
+                [PdfTool.Pen] = PenToolButton,
+                [PdfTool.Eraser] = EraserToolButton,
+                [PdfTool.Highlight] = HighlightToolButton,
+                [PdfTool.AreaHighlight] = AreaHighlightToolButton,
+                [PdfTool.Underline] = UnderlineToolButton,
+                [PdfTool.Strikeout] = StrikeoutToolButton,
+                [PdfTool.Squiggly] = SquigglyToolButton,
+                [PdfTool.Rectangle] = RectangleToolButton,
+                [PdfTool.Ellipse] = EllipseToolButton,
+                [PdfTool.Arrow] = ArrowToolButton,
+                [PdfTool.Crop] = CropToolButton,
+            },
+            UndoAnnotationButton,
+            RedoAnnotationButton,
+            ExportPdfButton);
         Closed += OnWindowClosed;
         ResizeWindow();
     }
@@ -198,6 +218,7 @@ public sealed partial class MainWindow : Window
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _search?.Dispose();
+        _annotations?.Dispose();
         _state?.Dispose();
         _viewport.CaptureCurrentPosition();
         _viewport.Dispose();

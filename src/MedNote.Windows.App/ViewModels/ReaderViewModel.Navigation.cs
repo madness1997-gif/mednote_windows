@@ -75,7 +75,23 @@ public sealed partial class ReaderViewModel
         QueuePersist();
     }
 
-    public void SetActiveTool(PdfTool tool) => ActiveTool = tool;
+    public void SetActiveTool(PdfTool tool)
+    {
+        if (ActiveTool == tool)
+        {
+            return;
+        }
+
+        ActiveTool = tool;
+        if (tool is not PdfTool.Select
+            and not PdfTool.Highlight
+            and not PdfTool.Underline
+            and not PdfTool.Strikeout
+            and not PdfTool.Squiggly)
+        {
+            ClearTextSelection();
+        }
+    }
 
     public bool ToggleBookmark()
     {

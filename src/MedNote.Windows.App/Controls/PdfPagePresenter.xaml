@@ -31,6 +31,11 @@
                     <MenuFlyout>
                         <MenuFlyoutItem Click="OnCopySelectionClicked" Text="Sao chép" />
                         <MenuFlyoutItem Click="OnDictionarySelectionClicked" Text="Tra Anh–Việt" />
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="OnHighlightSelectionClicked" Text="Tô sáng" />
+                        <MenuFlyoutItem Click="OnUnderlineSelectionClicked" Text="Gạch chân" />
+                        <MenuFlyoutItem Click="OnStrikeoutSelectionClicked" Text="Gạch ngang" />
+                        <MenuFlyoutItem Click="OnSquigglySelectionClicked" Text="Gạch lượn sóng" />
                     </MenuFlyout>
                 </Grid.ContextFlyout>
                 <Image
@@ -38,7 +43,13 @@
                     Stretch="Fill"
                     AutomationProperties.Name="Trang PDF" />
                 <Canvas
+                    x:Name="AnnotationCanvas"
+                    IsHitTestVisible="False" />
+                <Canvas
                     x:Name="SelectionCanvas"
+                    IsHitTestVisible="False" />
+                <Canvas
+                    x:Name="InteractionCanvas"
                     IsHitTestVisible="False" />
                 <ProgressRing
                     Width="34"

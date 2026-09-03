@@ -9,6 +9,7 @@ public sealed partial class ReaderViewModel : ObservableObject, IAsyncDisposable
     private readonly BitmapBudget<string> _bitmapBudget = new();
     private readonly PdfRenderScheduler _renderScheduler = new();
     private readonly ReaderSearchCoordinator _search = new();
+    private readonly PdfAnnotationSession _annotationSession = new();
     private readonly SemaphoreSlim _documentGate = new(1, 1);
     private IPdfDocumentSession? _session;
     private IReadOnlyList<PdfPageViewModel> _pages = Array.Empty<PdfPageViewModel>();
@@ -35,6 +36,10 @@ public sealed partial class ReaderViewModel : ObservableObject, IAsyncDisposable
     private double _viewportWidth = 1_000d;
     private double _viewportHeight = 760d;
     private double _rasterizationScale = 1d;
+    private string _inkColor = "#1c2933";
+    private string _highlightColor = "#f6d96b";
+    private double _inkWidth = 2d;
+    private PdfCropResult? _lastCropResult;
     private bool _disposed;
 
     public ReaderViewModel(IPdfEngine pdfEngine, IReaderLibraryStore libraryStore)

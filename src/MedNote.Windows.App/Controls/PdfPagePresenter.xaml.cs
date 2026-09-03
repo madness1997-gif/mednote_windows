@@ -28,6 +28,7 @@ public sealed partial class PdfPagePresenter : UserControl
     private bool _selectionUpdateRequested;
     private bool _selectionUpdateRunning;
     private bool _isSelecting;
+    private bool _selectionMarkupCommitted;
 
     public PdfPagePresenter()
     {
@@ -41,6 +42,7 @@ public sealed partial class PdfPagePresenter : UserControl
         Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost += OnSurfaceContentsLost;
         BindPage(DataContext as PdfPageViewModel);
         PresentSurface(_boundPage?.Surface);
+        DrawAnnotations();
         DrawSelection();
         RequestRender();
     }
@@ -51,8 +53,11 @@ public sealed partial class PdfPagePresenter : UserControl
         Microsoft.UI.Xaml.Media.CompositionTarget.SurfaceContentsLost -= OnSurfaceContentsLost;
         _renderRequested = false;
         CancelSelectionInteraction();
+        CancelAnnotationGesture();
         ClearDirect2DSurface();
+        AnnotationCanvas.Children.Clear();
         SelectionCanvas.Children.Clear();
+        InteractionCanvas.Children.Clear();
         BindPage(null);
     }
 
@@ -62,6 +67,7 @@ public sealed partial class PdfPagePresenter : UserControl
         if (IsLoaded)
         {
             PresentSurface(_boundPage?.Surface);
+            DrawAnnotations();
             DrawSelection();
             RequestRender();
         }
@@ -82,12 +88,17 @@ public sealed partial class PdfPagePresenter : UserControl
             or nameof(PdfPageViewModel.DisplayHeight)
             or nameof(PdfPageViewModel.Rotation))
         {
+            DrawAnnotations();
             DrawSelection();
             RequestRender();
         }
         else if (e.PropertyName == nameof(PdfPageViewModel.Selection))
         {
             DrawSelection();
+        }
+        else if (e.PropertyName == nameof(PdfPageViewModel.Annotations))
+        {
+            DrawAnnotations();
         }
     }
 
@@ -105,6 +116,7 @@ public sealed partial class PdfPagePresenter : UserControl
         }
 
         CancelSelectionInteraction();
+        CancelAnnotationGesture();
         _boundPage = page;
         if (_boundPage is not null)
         {
@@ -120,8 +132,14 @@ public sealed partial class PdfPagePresenter : UserControl
     {
         var page = _boundPage;
         var point = e.GetCurrentPoint(PageInteractionLayer);
-        if (page is null || !page.IsTextSelectionEnabled || !point.Properties.IsLeftButtonPressed)
+        if (page is null || !point.Properties.IsLeftButtonPressed)
         {
+            return;
+        }
+
+        if (!page.IsTextSelectionEnabled)
+        {
+            BeginAnnotationGesture(page, e, point);
             return;
         }
 
@@ -129,6 +147,7 @@ public sealed partial class PdfPagePresenter : UserControl
         _selectionCancellation = new CancellationTokenSource();
         var generation = ++_selectionGeneration;
         _isSelecting = true;
+        _selectionMarkupCommitted = false;
         page.ClearTextSelection();
         PageInteractionLayer.CapturePointer(e.Pointer);
         e.Handled = true;
@@ -145,6 +164,10 @@ public sealed partial class PdfPagePresenter : UserControl
 
             _selectionAnchorIndex = index;
             await page.SelectTextBetweenAsync(index.Value, index.Value, _selectionCancellation.Token);
+            if (!_isSelecting)
+            {
+                CommitAutomaticSelectionMarkup(page);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -154,6 +177,12 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (_gestureTool is not null)
+        {
+            UpdateAnnotationGesture(e);
+            return;
+        }
+
         if (!_isSelecting || _selectionAnchorIndex is null)
         {
             return;
@@ -169,8 +198,14 @@ public sealed partial class PdfPagePresenter : UserControl
         e.Handled = true;
     }
 
-    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
+    private async void OnPointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_gestureTool is not null)
+        {
+            await FinishAnnotationGestureAsync(e);
+            return;
+        }
+
         if (!_isSelecting)
         {
             return;
@@ -183,7 +218,11 @@ public sealed partial class PdfPagePresenter : UserControl
         e.Handled = true;
     }
 
-    private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e) => _isSelecting = false;
+    private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        _isSelecting = false;
+        CancelAnnotationGesture();
+    }
 
     private void QueueSelectionUpdate(PdfPagePoint point)
     {
@@ -234,6 +273,18 @@ public sealed partial class PdfPagePresenter : UserControl
             {
                 _ = RunSelectionUpdateLoopAsync();
             }
+            else if (!_isSelecting && _boundPage is { } page)
+            {
+                CommitAutomaticSelectionMarkup(page);
+            }
+        }
+    }
+
+    private void CommitAutomaticSelectionMarkup(PdfPageViewModel page)
+    {
+        if (!_selectionMarkupCommitted && page.CommitSelectionMarkupForActiveTool())
+        {
+            _selectionMarkupCommitted = true;
         }
     }
 

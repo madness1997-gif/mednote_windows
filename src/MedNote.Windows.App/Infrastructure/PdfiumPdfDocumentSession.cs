@@ -12,12 +12,15 @@ internal sealed class PdfiumPdfDocumentSession :
     IPdfDocumentSession,
     IPdfOutlineProvider,
     IPdfTextProvider,
-    IPdfTextHitTestProvider
+    IPdfTextHitTestProvider,
+    IPdfCropProvider,
+    IPdfAnnotationExportProvider
 {
     private const int MaximumConcurrentOperations = 2;
     private readonly PdfiumDispatcher _dispatcher;
     private readonly FpdfDocumentT _document;
     private readonly IReadOnlyList<PdfPageMetrics> _pageMetrics;
+    private readonly string? _password;
     private readonly SemaphoreSlim _lifetimeGate = new(
         MaximumConcurrentOperations,
         MaximumConcurrentOperations);
@@ -28,13 +31,15 @@ internal sealed class PdfiumPdfDocumentSession :
         FpdfDocumentT document,
         int pageCount,
         IReadOnlyList<PdfPageMetrics> pageMetrics,
-        PdfiumDispatcher dispatcher)
+        PdfiumDispatcher dispatcher,
+        string? password)
     {
         Path = path;
         _document = document;
         PageCount = pageCount;
         _pageMetrics = pageMetrics;
         _dispatcher = dispatcher;
+        _password = password;
     }
 
     public string Path { get; }
@@ -169,6 +174,48 @@ internal sealed class PdfiumPdfDocumentSession :
                     point,
                     horizontalTolerance,
                     verticalTolerance),
+                cancellationToken);
+        }
+        finally
+        {
+            _lifetimeGate.Release();
+        }
+    }
+
+    public async ValueTask<PdfCropResult> CropAsync(
+        PdfCropRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await _lifetimeGate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            ValidatePageIndex(request.PageIndex);
+            return await _dispatcher.InvokeAsync(
+                () => PdfiumPageCropper.Crop(_document, _pageMetrics, request),
+                cancellationToken);
+        }
+        finally
+        {
+            _lifetimeGate.Release();
+        }
+    }
+
+    public async ValueTask ExportFlattenedAsync(
+        string outputPath,
+        IReadOnlyList<PdfAnnotation> annotations,
+        CancellationToken cancellationToken = default)
+    {
+        await _lifetimeGate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            await _dispatcher.InvokeAsync(
+                () =>
+                {
+                    PdfiumAnnotationExporter.Export(Path, _password, outputPath, annotations, cancellationToken);
+                    return true;
+                },
                 cancellationToken);
         }
         finally

@@ -19,15 +19,22 @@ public enum PdfTool
     Pan,
     Select,
     Highlight,
+    AreaHighlight,
+    Underline,
+    Strikeout,
+    Squiggly,
     Pen,
     Eraser,
     Crop,
+    Rectangle,
+    Ellipse,
+    Arrow,
 }
 
 /// <summary>
 /// Reader fields intentionally match the web v6 payload. Annotation JSON is
-/// opaque until the native annotation editor is implemented, so importing and
-/// saving a document cannot erase annotations created by the web app.
+/// annotations keep their web JSON representation so native and web clients
+/// can exchange records without a migration.
 /// </summary>
 public sealed record ReaderState
 {

@@ -175,6 +175,7 @@ public sealed partial class ReaderViewModel
             _documentSize = info.Length;
             _documentLastModified = lastModified;
             _reader = nextReader;
+            _annotationSession.Reset(nextReader.Annotations);
             _position = nextPosition;
             DocumentName = info.Name;
             PageCount = openedSession.PageCount;
@@ -184,6 +185,10 @@ public sealed partial class ReaderViewModel
             FitMode = nextReader.FitMode;
             ViewMode = nextReader.ViewMode;
             Bookmarks = nextReader.Bookmarks.ToArray();
+            OnPropertyChanged(nameof(Annotations));
+            OnPropertyChanged(nameof(AnnotationCount));
+            OnPropertyChanged(nameof(CanUndoAnnotations));
+            OnPropertyChanged(nameof(CanRedoAnnotations));
             Pages = Enumerable.Range(0, PageCount)
                 .Select(index =>
                 {

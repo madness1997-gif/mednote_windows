@@ -47,11 +47,11 @@ See [p2.5-stabilization.md](p2.5-stabilization.md).
 
 ## M3 — Reader annotations
 
-- [ ] highlight, underline, strikeout, squiggly, area highlight;
-- [ ] pen/eraser and shape objects;
-- [ ] undo/redo sessions;
-- [ ] crop result contract for Note;
-- [ ] web annotation JSON parity and export flattening.
+- [x] highlight, underline, strikeout, squiggly, area highlight;
+- [x] pen/eraser and shape objects;
+- [x] undo/redo sessions;
+- [x] crop result contract for Note;
+- [x] web annotation JSON parity and export flattening.
 
 ## M4 — Native Note foundation
 

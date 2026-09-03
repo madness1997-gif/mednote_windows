@@ -32,9 +32,17 @@ The first vertical slice already contains:
   share the existing bitmap budget;
 - packaged adversarial PDF gates for vector tables, scan-like images, broken
   page boxes, extreme aspect ratios, and encrypted documents;
-- opaque preservation of existing web PDF annotations during JSON round-trips.
+- opaque preservation of unknown/future web PDF annotations during JSON round-trips;
+- native highlight/underline/strikeout/squiggly and arbitrary-area markup;
+- pressure-sampled pen, whole-object eraser, rectangle/ellipse/arrow tools, and
+  per-document 60-step undo/redo;
+- PDF-coordinate annotation overlays that remain anchored through zoom, fit,
+  continuous/single layout, DPI and Reader rotation changes;
+- high-resolution PDFium crop results ready for the future Note pane;
+- atomic PDFium export that flattens web-compatible annotations into page
+  content without rasterizing the source document.
 
-The M2 backend now implements renderer-independent PDF outline destinations,
+The M3 Reader now implements renderer-independent PDF outline destinations,
 text extraction rectangles, cancellable search, and a bounded 32 MB LRU text
 cache through PDFium. Every native call is serialized on an owned dispatcher;
 PDFium handles never cross the adapter boundary.
@@ -61,6 +69,8 @@ The Direct2D resource lifecycle is recorded in
 [ADR 0002](docs/decisions/0002-direct2d-surface-lifecycle.md).
 Page rotation ownership and rendering are recorded in
 [ADR 0003](docs/decisions/0003-pdf-page-rotation.md).
+Annotation persistence, coordinates, crop and export are recorded in
+[ADR 0004](docs/decisions/0004-annotation-contracts.md).
 
 ## Build
 
@@ -86,6 +96,6 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-Annotations editing, Note, Google Drive sync, and an installer remain outside
-M2. Text selection, copy, English–Vietnamese lookup, progressive search, and
-virtualized thumbnails now run through renderer-independent contracts.
+Note, Google Drive sync, and an installer remain outside M3. Reader annotation
+editing, crop handoff and flattened export now run through renderer-independent
+contracts.

@@ -83,6 +83,8 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _selection, value);
     }
 
+    public IReadOnlyList<PdfAnnotation> Annotations => _owner.GetAnnotationsForPage(Number);
+
     public double DisplayWidth => _displayWidth;
 
     public double DisplayHeight => _displayHeight;
@@ -317,7 +319,92 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
             .ToArray();
     }
 
-    internal bool IsTextSelectionEnabled => _owner.ActiveTool == PdfTool.Select;
+    internal bool IsTextSelectionEnabled => _owner.ActiveTool is PdfTool.Select
+        or PdfTool.Highlight
+        or PdfTool.Underline
+        or PdfTool.Strikeout
+        or PdfTool.Squiggly;
+
+    internal PdfTool ActiveTool => _owner.ActiveTool;
+
+    internal string InkColor => _owner.InkColor;
+
+    internal string HighlightColor => _owner.HighlightColor;
+
+    internal double InkWidth => _owner.InkWidth;
+
+    internal PdfAnnotationPoint DisplayPointToAnnotation(PdfPagePoint point, double pressure = 0.5d) =>
+        PdfAnnotationCoordinateMapper.DisplayToAnnotation(
+            point,
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation,
+            pressure);
+
+    internal PdfAnnotationRect DisplayRectToAnnotation(PdfPagePoint first, PdfPagePoint second) =>
+        PdfAnnotationCoordinateMapper.DisplayToAnnotation(
+            first,
+            second,
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+
+    internal PdfPageRect AnnotationRectToDisplay(PdfAnnotationRect rectangle) =>
+        PdfAnnotationCoordinateMapper.AnnotationToDisplay(
+            rectangle,
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+
+    internal PdfPagePoint AnnotationPointToDisplay(PdfAnnotationPoint point) =>
+        PdfAnnotationCoordinateMapper.AnnotationToDisplay(
+            point,
+            _metrics,
+            DisplayWidth,
+            DisplayHeight,
+            Rotation);
+
+    internal PdfAnnotationRect PageRectToAnnotation(PdfPageRect rectangle) =>
+        new(
+            rectangle.Left,
+            _metrics.Height - rectangle.Bottom,
+            rectangle.Right,
+            _metrics.Height - rectangle.Top);
+
+    internal double DisplayStrokeWidthToPage(double width)
+    {
+        var start = DisplayPointToAnnotation(new PdfPagePoint(0d, 0d));
+        var end = DisplayPointToAnnotation(new PdfPagePoint(width, 0d));
+        var result = Math.Sqrt(Math.Pow(end.X - start.X, 2d) + Math.Pow(end.Y - start.Y, 2d));
+        return Math.Max(0.1d, result);
+    }
+
+    internal double PageStrokeWidthToDisplay(double width)
+    {
+        var start = AnnotationPointToDisplay(new PdfAnnotationPoint(0d, 0d));
+        var end = AnnotationPointToDisplay(new PdfAnnotationPoint(width, 0d));
+        var result = Math.Sqrt(Math.Pow(end.X - start.X, 2d) + Math.Pow(end.Y - start.Y, 2d));
+        return Math.Max(1d, result);
+    }
+
+    internal bool AddAnnotation(PdfAnnotation annotation) => _owner.AddAnnotation(annotation);
+
+    internal bool DeleteAnnotations(IEnumerable<string> annotationIds) =>
+        _owner.DeleteAnnotations(annotationIds);
+
+    internal bool AddSelectionMarkup(PdfAnnotationKind kind) => _owner.AddSelectionMarkup(this, kind);
+
+    internal bool CommitSelectionMarkupForActiveTool() => _owner.CommitSelectionMarkupForActiveTool(this);
+
+    internal ValueTask<PdfCropResult?> CreateCropAsync(
+        PdfAnnotationRect rectangle,
+        CancellationToken cancellationToken = default) =>
+        _owner.CreateCropAsync(this, rectangle, cancellationToken);
+
+    internal void NotifyAnnotationsChanged() => OnPropertyChanged(nameof(Annotations));
 
     internal void SetSelectionFromOwner(PdfTextSelection? selection) => Selection = selection;
 
@@ -328,6 +415,8 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     }
 
     internal void ReportPresentationSucceeded() => Error = null;
+
+    internal void ReportInteractionError(string message) => Error = message;
 
     public async Task EnsureRenderedAsync(CancellationToken cancellationToken = default)
     {

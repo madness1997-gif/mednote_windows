@@ -68,7 +68,8 @@ public sealed class PdfiumPdfEngine : IPdfEngine, IAsyncDisposable
             opened.Document,
             opened.PageCount,
             opened.PageMetrics,
-            _dispatcher);
+            _dispatcher,
+            password);
     }
 
     public async ValueTask DisposeAsync()
