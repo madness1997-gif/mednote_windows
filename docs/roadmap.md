@@ -34,6 +34,17 @@
 - [x] generated adversarial CI corpus: tables, scan-like images, invalid page
   boxes, extreme ratios, and encrypted PDF;
 
+## P2.5 — Reader stabilization before feature growth
+
+- [x] keep `MainWindow` as composition/lifecycle and split command/sidebar routing;
+- [x] move Reader chrome projection, sidebar state and search debounce to controllers;
+- [x] move progressive search concurrency out of `ReaderViewModel`;
+- [x] split PDFium engine/session/render/text/outline responsibilities without changing native handle ownership;
+- [x] define a local-only real-world PDF corpus policy;
+- [x] add an opt-in manual memory soak harness that is not part of every push.
+
+See [p2.5-stabilization.md](p2.5-stabilization.md).
+
 ## M3 — Reader annotations
 
 - [ ] highlight, underline, strikeout, squiggly, area highlight;

@@ -7,3 +7,8 @@ TestResults/
 *.user
 *.suo
 *.nupkg
+
+tests/manual-pdf-corpus/*.pdf
+tests/manual-pdf-corpus/*.PDF
+tests/manual-pdf-corpus/corpus.local.json
+tests/manual-pdf-corpus/soak-results/
