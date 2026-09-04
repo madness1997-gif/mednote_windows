@@ -5,6 +5,7 @@ using MedNote.Windows.App.Controllers;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 
 namespace MedNote.Windows.App.Controls;
