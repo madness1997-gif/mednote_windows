@@ -278,9 +278,9 @@ jobs:
           $publishDir = (Resolve-Path artifacts/MedNote-Reader-Windows).Path
           $outputDir = New-Item artifacts/installer -ItemType Directory -Force
           & ISCC.exe `
-            "--define=AppVersion=$version" `
-            "--define=SourceDir=$publishDir" `
-            "--define=OutputDir=$($outputDir.FullName)" `
+            "/DAppVersion=$version" `
+            "/DSourceDir=$publishDir" `
+            "/DOutputDir=$($outputDir.FullName)" `
             installer/MedNote.Reader.iss
           if ($LASTEXITCODE -ne 0) {
             throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
