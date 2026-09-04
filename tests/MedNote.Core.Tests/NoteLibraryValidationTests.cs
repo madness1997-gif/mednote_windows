@@ -9,6 +9,75 @@ namespace MedNote.Core.Tests;
 public sealed class NoteLibraryValidationTests
 {
     [TestMethod]
+    public void FirstAidTemplate_IsNativeRtfWithTwelvePointEmptyContentCells()
+    {
+        var rtf = NativeNoteTemplates.FirstAidRtf;
+
+        Assert.IsTrue(RtfDocument.IsRtf(rtf));
+        StringAssert.Contains(rtf, @"\trowd");
+        StringAssert.Contains(rtf, @"\fs24");
+        Assert.IsFalse(rtf.Contains(@"\fs28", StringComparison.Ordinal));
+        Assert.IsFalse(rtf.Contains("Nội dung", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void WebV6TextProjection_ExtractsReadableTextAndRejectsOpaqueData()
+    {
+        var source = JsonSerializer.SerializeToElement(new
+        {
+            body = "Đái tháo đường",
+            bodyHtml = "<b>Đái tháo đường</b>",
+            firstAidBlocks = new[]
+            {
+                new
+                {
+                    label = "ĐIỀU TRỊ",
+                    rows = new[] { new[] { "Metformin", "500 mg" }, new[] { "Metformin", "500 mg" } },
+                },
+            },
+        });
+
+        var text = WebV6TextProjection.Project(source);
+
+        StringAssert.Contains(text, "Đái tháo đường");
+        StringAssert.Contains(text, "Metformin");
+        Assert.AreEqual(1, Count(text, "Đái tháo đường"));
+        Assert.AreEqual(2, Count(text, "Metformin"));
+        Assert.ThrowsExactly<InvalidDataException>(() => WebV6TextProjection.Project(
+            JsonSerializer.SerializeToElement(new { image = "data:image/png;base64,AAAA" })));
+        Assert.ThrowsExactly<InvalidDataException>(() => WebV6TextProjection.Project(
+            JsonSerializer.SerializeToElement(new { body = "Không được nhập thiếu", strokes = new[] { new { id = "stroke" } } })));
+        Assert.ThrowsExactly<InvalidDataException>(() => WebV6TextProjection.Project(
+            JsonSerializer.SerializeToElement(new { body = "Không được nhập thiếu", excerpts = new[] { new { kind = "image", assetId = "asset-1" } } })));
+    }
+
+    [TestMethod]
+    public void WebV6TextProjection_AllowsCanonicalEmptyFirstAidDocument()
+    {
+        var source = JsonSerializer.SerializeToElement(new
+        {
+            firstAid = new { version = 1, blocks = Array.Empty<object>() },
+            strokes = Array.Empty<object>(),
+            excerpts = Array.Empty<object>(),
+        });
+
+        Assert.AreEqual(string.Empty, WebV6TextProjection.Project(source));
+    }
+
+    private static int Count(string source, string value)
+    {
+        var count = 0;
+        var position = 0;
+        while ((position = source.IndexOf(value, position, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            position += value.Length;
+        }
+
+        return count;
+    }
+
+    [TestMethod]
     public void Validate_RejectsMissingOrOrphanSheetContent()
     {
         var library = NoteLibraryTestData.Create();

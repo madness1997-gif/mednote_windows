@@ -1,0 +1,208 @@
+<UserControl
+    x:Class="MedNote.Windows.App.Controls.NotePane"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="{ThemeResource PaneBackgroundBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="176" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border
+            Grid.Column="0"
+            Padding="12"
+            Background="#FFF8FAFA"
+            BorderBrush="{ThemeResource SubtleBorderBrush}"
+            BorderThickness="0,0,1,0">
+            <Grid RowSpacing="7">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Foreground="{ThemeResource MedNoteTealBrush}"
+                        Text="THƯ VIỆN NOTE" />
+                    <Button
+                        Grid.Column="1"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        Click="OnCreateNotebookClicked"
+                        Content="+"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTipService.ToolTip="Tạo sổ ghi chú" />
+                </Grid>
+                <TextBlock Grid.Row="1" FontSize="10" Foreground="{ThemeResource MutedTextBrush}" Text="Sổ ghi chú" />
+                <ComboBox
+                    x:Name="NotebookBox"
+                    Grid.Row="2"
+                    Height="34"
+                    DisplayMemberPath="Title"
+                    ItemsSource="{Binding Notebooks}"
+                    SelectionChanged="OnNotebookSelectionChanged" />
+                <TextBlock Grid.Row="3" FontSize="10" Foreground="{ThemeResource MutedTextBrush}" Text="Phần" />
+                <ComboBox
+                    x:Name="SectionBox"
+                    Grid.Row="4"
+                    Height="34"
+                    DisplayMemberPath="Title"
+                    ItemsSource="{Binding Sections}"
+                    SelectionChanged="OnSectionSelectionChanged" />
+                <Grid Grid.Row="5" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{ThemeResource MutedTextBrush}" Text="Trang" />
+                    <Button
+                        Grid.Column="1"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        Click="OnCreatePageClicked"
+                        Content="+"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTipService.ToolTip="Tạo trang First Aid" />
+                </Grid>
+                <ComboBox
+                    x:Name="PageBox"
+                    Grid.Row="6"
+                    Height="34"
+                    DisplayMemberPath="Title"
+                    ItemsSource="{Binding Pages}"
+                    SelectionChanged="OnPageSelectionChanged" />
+                <Grid Grid.Row="7" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox
+                        x:Name="SheetBox"
+                        Height="34"
+                        DisplayMemberPath="Label"
+                        ItemsSource="{Binding Sheets}"
+                        SelectionChanged="OnSheetSelectionChanged" />
+                    <Button
+                        Grid.Column="1"
+                        Width="28"
+                        Height="28"
+                        Padding="0"
+                        Click="OnCreateSheetClicked"
+                        Content="+"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTipService.ToolTip="Thêm tờ" />
+                </Grid>
+                <StackPanel Grid.Row="8" Margin="0,14,0,0" VerticalAlignment="Bottom" Spacing="4">
+                    <TextBlock
+                        FontSize="10"
+                        Foreground="{ThemeResource MutedTextBrush}"
+                        Text="RTF native · tự động lưu"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        FontSize="10"
+                        Foreground="{ThemeResource MedNoteTealBrush}"
+                        Text="{Binding StatusText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="42" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border
+                Padding="14,6"
+                Background="White"
+                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                BorderThickness="0,0,0,1">
+                <TextBox
+                    x:Name="PageTitleBox"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{ThemeResource MedNoteNavyBrush}"
+                    LostFocus="OnPageTitleLostFocus"
+                    Text="{Binding ActivePageTitle, Mode=OneWay}" />
+            </Border>
+            <Border
+                Grid.Row="1"
+                Padding="8,4"
+                Background="#FFFDFEFE"
+                BorderBrush="{ThemeResource SubtleBorderBrush}"
+                BorderThickness="0,0,0,1">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <Button Click="OnBoldClicked" Content="B" FontWeight="Bold" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Đậm" />
+                        <Button Click="OnItalicClicked" Content="I" FontStyle="Italic" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Nghiêng" />
+                        <Button Click="OnUnderlineClicked" Content="U̲" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Gạch chân" />
+                        <Border Width="1" Height="24" Margin="4,0" Background="{ThemeResource SubtleBorderBrush}" />
+                        <Button Click="OnFontSizeClicked" Content="10" Style="{StaticResource ToolbarButtonStyle}" Tag="10" />
+                        <Button Click="OnFontSizeClicked" Content="12" Style="{StaticResource ToolbarButtonStyle}" Tag="12" />
+                        <Button Click="OnFontSizeClicked" Content="14" Style="{StaticResource ToolbarButtonStyle}" Tag="14" />
+                        <Button Click="OnFontSizeClicked" Content="18" Style="{StaticResource ToolbarButtonStyle}" Tag="18" />
+                        <Border Width="1" Height="24" Margin="4,0" Background="{ThemeResource SubtleBorderBrush}" />
+                        <Button Click="OnBulletClicked" Content="• Danh sách" Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button Click="OnNumberedClicked" Content="1. Danh sách" Style="{StaticResource ToolbarButtonStyle}" />
+                        <Border Width="1" Height="24" Margin="4,0" Background="{ThemeResource SubtleBorderBrush}" />
+                        <Button
+                            Padding="10,0"
+                            Background="#FFFFE8E4"
+                            Click="OnFirstAidClicked"
+                            Content="First Aid"
+                            Foreground="#FF8A3428"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTipService.ToolTip="Chèn khung First Aid native" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+            <Grid Grid.Row="2" Background="#FFEEF3F4">
+                <Border
+                    MaxWidth="900"
+                    Margin="22"
+                    Padding="28,20"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="White"
+                    BorderBrush="#FFD6DFE2"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                    <RichEditBox
+                        x:Name="Editor"
+                        AcceptsReturn="True"
+                        Background="White"
+                        BorderThickness="0"
+                        FontFamily="Segoe UI"
+                        FontSize="12"
+                        Foreground="#FF1C2933"
+                        IsSpellCheckEnabled="True"
+                        TextWrapping="Wrap" />
+                </Border>
+                <ProgressRing
+                    Width="30"
+                    Height="30"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsActive="{Binding IsBusy}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

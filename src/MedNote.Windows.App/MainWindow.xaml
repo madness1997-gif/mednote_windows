@@ -100,41 +100,42 @@
                         BorderThickness="1"
                         CornerRadius="9">
                         <StackPanel Orientation="Horizontal">
-                            <Button
+                            <ToggleButton
+                                x:Name="SplitWorkspaceButton"
                                 Height="32"
                                 Padding="9,0"
-                                Background="Transparent"
                                 BorderThickness="0"
+                                Click="OnSplitWorkspaceClicked"
                                 Content="Cả hai"
                                 FontSize="10"
                                 FontWeight="SemiBold"
-                                IsEnabled="False"
-                                ToolTipService.ToolTip="Note sẽ được bổ sung sau Reader" />
+                                ToolTipService.ToolTip="Reader và Note cạnh nhau" />
                             <Border Width="1" Background="#FFDCE5E7" />
-                            <Button
+                            <ToggleButton
+                                x:Name="ReaderWorkspaceButton"
                                 Height="32"
                                 Padding="9,0"
-                                Background="{ThemeResource SelectedBrush}"
                                 BorderThickness="0"
+                                Click="OnReaderWorkspaceClicked"
                                 FontSize="10"
-                                FontWeight="Bold"
-                                Foreground="{ThemeResource MedNoteTealBrush}">
+                                FontWeight="SemiBold"
+                                IsChecked="True">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <FontIcon FontSize="15" Glyph="&#xE736;" />
                                     <TextBlock VerticalAlignment="Center" Text="Reader" />
                                 </StackPanel>
-                            </Button>
+                            </ToggleButton>
                             <Border Width="1" Background="#FFDCE5E7" />
-                            <Button
+                            <ToggleButton
+                                x:Name="NoteWorkspaceButton"
                                 Height="32"
                                 Padding="9,0"
-                                Background="Transparent"
                                 BorderThickness="0"
+                                Click="OnNoteWorkspaceClicked"
                                 Content="Note"
                                 FontSize="10"
                                 FontWeight="SemiBold"
-                                IsEnabled="False"
-                                ToolTipService.ToolTip="Chưa có note" />
+                                ToolTipService.ToolTip="Chỉ hiện Note" />
                         </StackPanel>
                     </Border>
                     <StackPanel Margin="5,0,3,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
@@ -432,7 +433,13 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Column="1">
+            <Grid x:Name="WorkspaceGrid" Grid.Column="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="ReaderWorkspaceColumn" Width="*" />
+                    <ColumnDefinition x:Name="WorkspaceDividerColumn" Width="0" />
+                    <ColumnDefinition x:Name="NoteWorkspaceColumn" Width="0" />
+                </Grid.ColumnDefinitions>
+                <Grid x:Name="ReaderPane" Grid.Column="0" IsTabStop="True">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="86" />
                     <RowDefinition Height="*" />
@@ -720,6 +727,16 @@
                         </Border>
                     </Border>
                 </Grid>
+                </Grid>
+                <Border
+                    x:Name="WorkspaceDivider"
+                    Grid.Column="1"
+                    Background="#FFD5E0E2"
+                    Visibility="Collapsed" />
+                <controls:NotePane
+                    x:Name="NoteWorkspacePane"
+                    Grid.Column="2"
+                    Visibility="Collapsed" />
             </Grid>
         </Grid>
     </Grid>

@@ -57,12 +57,14 @@ See [p2.5-stabilization.md](p2.5-stabilization.md).
 
 - [x] native RTF repository, staged replacement and isolated web-v6 import contract;
 - [x] shared library hierarchy and Document–Page/Sheet links;
-- [ ] Reader/Note split layout and F6 switching;
-- [ ] RichEdit-based native editing and First Aid blocks;
+- [x] native Reader cut-over, Reader/Note split layout and F6 switching;
+- [x] RichEdit-based native editing, basic formatting and the default First Aid table;
+- [x] concrete one-way web-v6 readable-text → RTF conversion;
 - [ ] source anchors from Note back to PDF;
-- [ ] exact Reader position preservation across pane changes.
+- [x] exact Reader position and Note caret preservation across pane changes.
 
-See [m4.1-data-foundation.md](m4.1-data-foundation.md).
+See [m4.1-data-foundation.md](m4.1-data-foundation.md) and
+[m4.2-native-workspace.md](m4.2-native-workspace.md).
 
 ## M5 — Sync and distribution
 

@@ -1,4 +1,5 @@
 using MedNote.Core;
+using MedNote.Infrastructure;
 using MedNote.Windows.App.Controllers;
 using MedNote.Windows.App.Infrastructure;
 using MedNote.Windows.App.ViewModels;
@@ -13,21 +14,40 @@ namespace MedNote.Windows.App;
 
 public sealed partial class MainWindow : Window
 {
+    private readonly FileNoteRepository _noteRepository;
+    private readonly JsonReaderLibraryStore _legacyReaderStore;
+    private readonly ReaderLibraryCutoverStore _readerStore;
     private readonly ReaderViewportController _viewport;
     private readonly string? _startupDocumentPath;
     private ReaderWindowStateController? _state;
     private ReaderSidebarController? _sidebar;
     private ReaderSearchDebouncer? _search;
     private ReaderAnnotationController? _annotations;
+    private WorkspaceLayoutController? _workspace;
+    private Task _workspacePreferenceSave = Task.CompletedTask;
     private bool _initializingControls = true;
     private bool _initialized;
+    private bool _changingWorkspace;
+    private bool _closing;
 
     public MainWindow(string? startupDocumentPath = null)
     {
         _startupDocumentPath = startupDocumentPath;
-        ViewModel = new ReaderViewModel(new PdfiumPdfEngine(), new JsonReaderLibraryStore());
+        _noteRepository = new FileNoteRepository(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MedNote Reader",
+            "native-library"));
+        _legacyReaderStore = new JsonReaderLibraryStore();
+        _readerStore = new ReaderLibraryCutoverStore(
+            _legacyReaderStore,
+            new NativeReaderLibraryStore(_noteRepository));
+        NoteViewModel = new NoteViewModel(_noteRepository);
+        ViewModel = new ReaderViewModel(new PdfiumPdfEngine(), _readerStore);
         InitializeComponent();
         _initializingControls = false;
+
+        NoteWorkspacePane.Attach(NoteViewModel);
+        NoteWorkspacePane.OperationFailed += OnNoteOperationFailed;
 
         _viewport = new ReaderViewportController(
             ViewModel,
@@ -82,11 +102,25 @@ public sealed partial class MainWindow : Window
             UndoAnnotationButton,
             RedoAnnotationButton,
             ExportPdfButton);
+        _workspace = new WorkspaceLayoutController(
+            WorkspaceGrid,
+            ReaderWorkspaceColumn,
+            WorkspaceDividerColumn,
+            NoteWorkspaceColumn,
+            ReaderPane,
+            WorkspaceDivider,
+            NoteWorkspacePane,
+            SplitWorkspaceButton,
+            ReaderWorkspaceButton,
+            NoteWorkspaceButton);
+        _workspace.LayoutChanged += OnWorkspaceLayoutChanged;
         Closed += OnWindowClosed;
         ResizeWindow();
     }
 
     public ReaderViewModel ViewModel { get; }
+
+    public NoteViewModel NoteViewModel { get; }
 
     private bool IsApplyingControls => _initializingControls || _state?.IsApplying == true;
 
@@ -99,6 +133,21 @@ public sealed partial class MainWindow : Window
 
         _initialized = true;
         _viewport.Initialize();
+        try
+        {
+            await NoteViewModel.InitializeAsync(_legacyReaderStore);
+            NoteWorkspacePane.LoadActiveSheet();
+            _readerStore.ActivateNative();
+            _workspace?.Apply(
+                NoteViewModel.Preferences.WorkspaceMode ?? WorkspaceMode.Reader,
+                NoteViewModel.Preferences.ReaderShare);
+        }
+        catch (Exception exception)
+        {
+            _workspace?.Apply(WorkspaceMode.Reader, 50d);
+            await ShowErrorAsync("Không khởi tạo được Note", exception.Message);
+        }
+
         var hasStartupDocument = !string.IsNullOrWhiteSpace(_startupDocumentPath)
             && File.Exists(_startupDocumentPath);
         await ViewModel.InitializeAsync(reopenActiveDocument: !hasStartupDocument);
@@ -115,7 +164,10 @@ public sealed partial class MainWindow : Window
         }
 
         ApplyViewModelState();
-        await _viewport.RestoreSavedPositionAsync();
+        if (_workspace?.Mode != WorkspaceMode.Note)
+        {
+            await _viewport.RestoreSavedPositionAsync();
+        }
     }
 
     private async void OnOpenClicked(object sender, RoutedEventArgs e) => await PickAndOpenFileAsync();
@@ -153,6 +205,11 @@ public sealed partial class MainWindow : Window
                 if (RenderProbe.StartupRotation is { } startupRotation)
                 {
                     ViewModel.SetRotation(startupRotation);
+                }
+
+                if (_workspace?.Mode == WorkspaceMode.Note)
+                {
+                    _workspace.Apply(WorkspaceMode.Split, _workspace.ReaderShare, notify: true);
                 }
 
                 ApplyViewModelState();
@@ -217,12 +274,24 @@ public sealed partial class MainWindow : Window
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _closing = true;
         _search?.Dispose();
         _annotations?.Dispose();
         _state?.Dispose();
+        if (_workspace is not null)
+        {
+            _workspace.LayoutChanged -= OnWorkspaceLayoutChanged;
+            _workspace.Dispose();
+        }
+
         _viewport.CaptureCurrentPosition();
         _viewport.Dispose();
+        NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
+        await NoteWorkspacePane.DisposeAsync();
+        await _workspacePreferenceSave;
         await ViewModel.DisposeAsync();
+        _legacyReaderStore.Dispose();
+        await _noteRepository.DisposeAsync();
     }
 
     private async Task ShowErrorAsync(string title, string message)

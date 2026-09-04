@@ -174,7 +174,15 @@ public sealed partial class MainWindow
             return;
         }
 
-        if (FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox)
+        if (e.Key == VirtualKey.F6)
+        {
+            e.Handled = true;
+            await HandleF6Async();
+            return;
+        }
+
+        if (FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox or RichEditBox
+            || NoteWorkspacePane.ContainsFocus())
         {
             return;
         }

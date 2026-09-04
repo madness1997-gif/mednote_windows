@@ -47,3 +47,9 @@ The exact web DTO and backup hash codec are isolated under
 `Compatibility.WebV6`. A failed conversion cannot replace the live native
 manifest. M4 does not promise reverse RTF→web conversion or direct editing of a
 web SheetContent record.
+
+M4.2 provides a UI-thread RichEdit converter for this boundary. It prefers the
+web rich-text projection over duplicate plain-text fields, reads current and
+legacy First Aid text/table/flow fields, and emits 12-point Segoe UI RTF. An
+opaque-only payload, canvas strokes or image asset is rejected instead of being
+silently imported as incomplete content.

@@ -1,0 +1,229 @@
+using System.ComponentModel;
+using MedNote.Core;
+using MedNote.Windows.App.Controllers;
+using MedNote.Windows.App.ViewModels;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+
+namespace MedNote.Windows.App.Controls;
+
+public sealed partial class NotePane : UserControl
+{
+    private readonly SemaphoreSlim _navigationGate = new(1, 1);
+    private NoteViewModel? _viewModel;
+    private NoteEditorController? _editor;
+    private bool _applyingNavigation;
+
+    public NotePane()
+    {
+        InitializeComponent();
+    }
+
+    public event Action<Exception>? OperationFailed;
+
+    public bool ContainsFocus()
+    {
+        var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+        while (focused is not null)
+        {
+            if (ReferenceEquals(focused, this))
+            {
+                return true;
+            }
+
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+
+        return false;
+    }
+
+    public void FocusEditor() => _editor?.FocusEditor();
+
+    public void Attach(NoteViewModel viewModel)
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        if (_viewModel is not null)
+        {
+            throw new InvalidOperationException("NotePane đã được gắn ViewModel.");
+        }
+
+        _viewModel = viewModel;
+        DataContext = viewModel;
+        _editor = new NoteEditorController(viewModel, Editor);
+        _editor.SaveFailed += OnEditorSaveFailed;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    public void LoadActiveSheet()
+    {
+        ApplyNavigationSelection();
+        _editor?.LoadActiveSheet();
+    }
+
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        if (_editor is not null)
+        {
+            _editor.CaptureSelection();
+            await _editor.SaveNowAsync(cancellationToken);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        if (_editor is not null)
+        {
+            _editor.SaveFailed -= OnEditorSaveFailed;
+            await _editor.DisposeAsync();
+            _editor = null;
+        }
+
+        _navigationGate.Dispose();
+    }
+
+    private async void OnNotebookSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_applyingNavigation && NotebookBox.SelectedItem is NotebookRecord notebook)
+        {
+            await NavigateAsync(() => _viewModel!.SelectNotebookAsync(notebook.Id));
+        }
+    }
+
+    private async void OnSectionSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_applyingNavigation && SectionBox.SelectedItem is SectionRecord section)
+        {
+            await NavigateAsync(() => _viewModel!.SelectSectionAsync(section.Id));
+        }
+    }
+
+    private async void OnPageSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_applyingNavigation && PageBox.SelectedItem is PageRecord page)
+        {
+            await NavigateAsync(() => _viewModel!.SelectPageAsync(page.Id));
+        }
+    }
+
+    private async void OnSheetSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_applyingNavigation && SheetBox.SelectedItem is NoteSheetNavigationItem sheet)
+        {
+            await NavigateAsync(() => _viewModel!.SelectSheetAsync(sheet.Id));
+        }
+    }
+
+    private async void OnCreateNotebookClicked(object sender, RoutedEventArgs e) =>
+        await NavigateAsync(() => _viewModel!.CreateNotebookAsync());
+
+    private async void OnCreatePageClicked(object sender, RoutedEventArgs e) =>
+        await NavigateAsync(() => _viewModel!.CreatePageAsync());
+
+    private async void OnCreateSheetClicked(object sender, RoutedEventArgs e) =>
+        await NavigateAsync(() => _viewModel!.CreateSheetAsync());
+
+    private async void OnPageTitleLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.RenameActivePageAsync(PageTitleBox.Text);
+        }
+        catch (Exception exception)
+        {
+            PageTitleBox.Text = _viewModel.ActivePageTitle;
+            OperationFailed?.Invoke(exception);
+        }
+    }
+
+    private void OnBoldClicked(object sender, RoutedEventArgs e) => _editor?.ToggleBold();
+
+    private void OnItalicClicked(object sender, RoutedEventArgs e) => _editor?.ToggleItalic();
+
+    private void OnUnderlineClicked(object sender, RoutedEventArgs e) => _editor?.ToggleUnderline();
+
+    private void OnBulletClicked(object sender, RoutedEventArgs e) => _editor?.ToggleBulletList();
+
+    private void OnNumberedClicked(object sender, RoutedEventArgs e) => _editor?.ToggleNumberedList();
+
+    private void OnFirstAidClicked(object sender, RoutedEventArgs e) => _editor?.InsertFirstAid();
+
+    private void OnFontSizeClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string value } && float.TryParse(value, out var points))
+        {
+            _editor?.SetFontSize(points);
+        }
+    }
+
+    private async Task NavigateAsync(Func<Task> navigation)
+    {
+        if (_viewModel is null || _editor is null)
+        {
+            return;
+        }
+
+        await _navigationGate.WaitAsync();
+        try
+        {
+            _editor.CaptureSelection();
+            await _editor.SaveNowAsync();
+            await navigation();
+            LoadActiveSheet();
+        }
+        catch (Exception exception)
+        {
+            OperationFailed?.Invoke(exception);
+            ApplyNavigationSelection();
+        }
+        finally
+        {
+            _navigationGate.Release();
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(NoteViewModel.Notebooks)
+            or nameof(NoteViewModel.Sections)
+            or nameof(NoteViewModel.Pages)
+            or nameof(NoteViewModel.Sheets)
+            or nameof(NoteViewModel.Active))
+        {
+            ApplyNavigationSelection();
+        }
+    }
+
+    private void ApplyNavigationSelection()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        _applyingNavigation = true;
+        try
+        {
+            NotebookBox.SelectedItem = _viewModel.Notebooks.FirstOrDefault(item => item.Id == _viewModel.Active.ActiveNotebookId);
+            SectionBox.SelectedItem = _viewModel.Sections.FirstOrDefault(item => item.Id == _viewModel.Active.ActiveSectionId);
+            PageBox.SelectedItem = _viewModel.Pages.FirstOrDefault(item => item.Id == _viewModel.Active.ActivePageId);
+            SheetBox.SelectedItem = _viewModel.Sheets.FirstOrDefault(item => item.Id == _viewModel.Active.ActiveSheetId);
+        }
+        finally
+        {
+            _applyingNavigation = false;
+        }
+    }
+
+    private void OnEditorSaveFailed(Exception exception) => OperationFailed?.Invoke(exception);
+}

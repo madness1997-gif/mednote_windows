@@ -38,6 +38,9 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 ### MedNote.Windows.App
 
 - Owns WinUI views and user interaction.
+- Owns the native RichEdit RTF boundary, Note toolbar and per-Sheet caret state.
+- Owns Reader/Note visibility, split sizing and F6 focus routing without
+  coupling those concerns to the PDF presenter.
 - Implements `IPdfEngine`, `IPdfOutlineProvider`, `IPdfTextProvider`, and
   `IPdfTextHitTestProvider` with PDFiumCore/PDFium.
 - Virtualizes page controls with `ListView`/`ItemsStackPanel`.
@@ -63,6 +66,8 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
   metadata-only startup and navigation never hydrate unrelated Sheets.
 - Keeps web v6 parsing/conversion outside the repository and switches the live
   manifest only after a complete native snapshot reloads successfully.
+- Projects the shared native Document graph through the existing Reader store
+  contract, so Reader state and Note metadata use one live Library manifest.
 
 ## Renderer strategy
 

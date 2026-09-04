@@ -1,6 +1,9 @@
 # MedNote Reader for Windows
 
-MedNote Reader for Windows is a clean-room, Windows-native rewrite of the Reader half of the existing `mednote-reader` web application. It reuses the stable data contracts and proven navigation rules, but it does **not** embed the React application, Chromium, Electron, or WebView.
+MedNote Reader for Windows is a clean-room, Windows-native rewrite of the existing
+`mednote-reader` web application. It reuses stable data contracts and proven
+navigation rules, but it does **not** embed React, Chromium, Electron, or a
+WebView.
 
 ## Current preview
 
@@ -44,7 +47,14 @@ The first vertical slice already contains:
 - shared Note hierarchy/Document-link contracts with native RTF Sheet content;
 - lazy, SHA-256-addressed RTF storage behind an atomic manifest;
 - isolated web-v6 backup validation and a web→RTF conversion boundary that
-  finishes before native staged replacement begins.
+  finishes before native staged replacement begins;
+- one native Library manifest shared by Reader and Note after a non-destructive
+  Reader-v1 migration;
+- Reader, Note and adjustable split modes with persisted 20–80% sizing and F6
+  pane switching that preserves PDF position and Note caret;
+- a lazy active-Sheet RichEdit editor with native RTF autosave, basic text/list
+  formatting and a 12-point First Aid table whose content cells start empty;
+- a concrete one-way web-v6 readable-text converter that emits native RTF.
 
 The M3 Reader now implements renderer-independent PDF outline destinations,
 text extraction rectangles, cancellable search, and a bounded 32 MB LRU text
@@ -70,7 +80,10 @@ MedNote.Core
 `IPdfEngine`/`IPdfDocumentSession`, so navigation, persistence, and view-model
 contracts do not depend on native handle types.
 
-Read [architecture.md](docs/architecture.md), [web-compatibility.md](docs/web-compatibility.md), and [roadmap.md](docs/roadmap.md) before expanding the app.
+Read [architecture.md](docs/architecture.md),
+[m4.2-native-workspace.md](docs/m4.2-native-workspace.md),
+[web-compatibility.md](docs/web-compatibility.md), and
+[roadmap.md](docs/roadmap.md) before expanding the app.
 The PDFium selection and threading boundary are recorded in
 [ADR 0001](docs/decisions/0001-pdfium-backend.md).
 The Direct2D resource lifecycle is recorded in
@@ -104,8 +117,6 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-The Note UI, concrete web→RTF conversion, Google Drive sync, and an installer
-remain outside M4.1. Reader
-annotation editing, crop handoff and flattened export run through
-renderer-independent contracts; the native Note repository is present but will not
-replace Reader v1 persistence until the M4.2 workspace shell is ready.
+M4.2 does not yet implement source anchors, crop/image handoff into Note,
+advanced block/canvas editing, reverse RTF→web conversion, Google Drive sync,
+or an installer. Those stay in M4.3 or M5.
