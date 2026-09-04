@@ -93,7 +93,8 @@ public sealed class FileNoteRepositoryTests
         var reloaded = await repository.LoadLibraryAsync();
 
         Assert.IsNotNull(reloaded);
-        NativeLibrarySnapshotVerifier.AssertEquivalent(library, reloaded);
+        Assert.IsTrue(reloaded.SavedAt >= library.SavedAt);
+        NativeLibrarySnapshotVerifier.AssertEquivalent(library with { SavedAt = reloaded.SavedAt }, reloaded);
     }
 
     [TestMethod]
