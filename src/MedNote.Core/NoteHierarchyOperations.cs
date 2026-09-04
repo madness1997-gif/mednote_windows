@@ -242,7 +242,11 @@ public static class NoteHierarchyOperations
 
         var sectionIds = source.Sections.Where(record => record.NotebookId == id).Select(record => record.Id).ToHashSet(StringComparer.Ordinal);
         var pageIds = source.Pages.Where(record => sectionIds.Contains(record.SectionId)).Select(record => record.Id).ToHashSet(StringComparer.Ordinal);
-        return Delete(source, [id], sectionIds, pageIds);
+        return Delete(
+            source,
+            new HashSet<string>(StringComparer.Ordinal) { id },
+            sectionIds,
+            pageIds);
     }
 
     public static HierarchyMutation DeleteSection(NoteStructure source, string id)
@@ -255,7 +259,11 @@ public static class NoteHierarchyOperations
         }
 
         var pageIds = source.Pages.Where(record => record.SectionId == id).Select(record => record.Id).ToHashSet(StringComparer.Ordinal);
-        return Delete(source, [], [id], pageIds);
+        return Delete(
+            source,
+            new HashSet<string>(StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal) { id },
+            pageIds);
     }
 
     public static HierarchyMutation DeletePage(NoteStructure source, string id)
@@ -265,7 +273,11 @@ public static class NoteHierarchyOperations
             throw new NoteRepositoryMutationException($"Không tìm thấy Page {id}.");
         }
 
-        return Delete(source, [], [], [id]);
+        return Delete(
+            source,
+            new HashSet<string>(StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal) { id });
     }
 
     public static HierarchyMutation DeleteSheet(NoteStructure source, string id)
