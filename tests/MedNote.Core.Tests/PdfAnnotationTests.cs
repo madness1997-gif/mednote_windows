@@ -34,6 +34,7 @@ public sealed class PdfAnnotationTests
         Assert.AreEqual("area-highlight", roundTrip.GetProperty("kind").GetString());
         Assert.IsTrue(roundTrip.GetProperty("futureField").GetProperty("kept").GetBoolean());
         Assert.AreEqual(10d, roundTrip.GetProperty("rects")[0].GetProperty("x1").GetDouble());
+        Assert.AreEqual(4, roundTrip.GetProperty("rects")[0].EnumerateObject().Count());
     }
 
     [TestMethod]

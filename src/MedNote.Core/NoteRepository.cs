@@ -70,6 +70,17 @@ public interface INoteRepository : IAsyncDisposable
 
     ValueTask SaveSheetContentAsync(string sheetId, RtfSheetContent content, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Saves the RTF body and its PDF content anchor in one repository commit.
+    /// Implementations must not expose either half without the other.
+    /// </summary>
+    ValueTask<DocumentGraph> SaveLinkedSheetContentAsync(
+        string sheetId,
+        RtfSheetContent content,
+        NoteDocumentLink link,
+        DocumentLinkRelation relation,
+        CancellationToken cancellationToken = default);
+
     ValueTask SetPreferencesAsync(LibraryPreferences preferences, CancellationToken cancellationToken = default);
 
     ValueTask SetActiveStateAsync(ActiveNoteState active, CancellationToken cancellationToken = default);

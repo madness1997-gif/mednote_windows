@@ -97,6 +97,62 @@ public sealed class FileNoteRepositoryTests
     }
 
     [TestMethod]
+    public async Task SaveLinkedSheetContent_CommitsRtfAndPdfAnchorTogether()
+    {
+        using var directory = new TemporaryRepositoryDirectory();
+        await using var repository = new FileNoteRepository(directory.Path);
+        var initial = NoteLibraryTestData.WithLinkedDocument(NoteLibraryTestData.Create(1));
+        await repository.ReplaceLibraryAsync(initial);
+        var content = new RtfSheetContent { Rtf = @"{\rtf1\ansi\pard Cropped source\par}" };
+        var pair = PdfContentLinks.Create(
+            "doc-1",
+            "sheet-1",
+            12,
+            new PdfAnnotationRect(10, 20, 110, 220),
+            createdAt: 123,
+            linkId: "crop-link",
+            relationId: "crop-relation");
+
+        var graph = await repository.SaveLinkedSheetContentAsync(
+            "sheet-1",
+            content,
+            pair.Link,
+            pair.Relation);
+        var reloaded = await repository.LoadLibraryAsync();
+
+        Assert.IsNotNull(reloaded);
+        Assert.AreEqual(content.Rtf, reloaded.SheetContents["sheet-1"].Rtf);
+        Assert.IsTrue(graph.Links.Any(link => link.Id == "crop-link"));
+        Assert.AreEqual(12, graph.LinkRelations.Single(relation => relation.Id == "crop-relation").ContentAnchor?.PdfPage);
+        NoteLibraryValidator.AssertValid(reloaded);
+    }
+
+    [TestMethod]
+    public async Task SaveLinkedSheetContent_RejectsMismatchedAnchorWithoutChangingRtf()
+    {
+        using var directory = new TemporaryRepositoryDirectory();
+        await using var repository = new FileNoteRepository(directory.Path);
+        var initial = NoteLibraryTestData.WithLinkedDocument(NoteLibraryTestData.Create(1));
+        await repository.ReplaceLibraryAsync(initial);
+        var pair = PdfContentLinks.Create(
+            "doc-1",
+            "sheet-1",
+            12,
+            new PdfAnnotationRect(10, 20, 110, 220));
+
+        await Assert.ThrowsExactlyAsync<NoteRepositoryMutationException>(async () =>
+            await repository.SaveLinkedSheetContentAsync(
+                "sheet-1",
+                new RtfSheetContent { Rtf = @"{\rtf1\ansi\pard Must not commit\par}" },
+                pair.Link,
+                pair.Relation with { SourceId = "missing-document" }));
+        var reloaded = await repository.LoadLibraryAsync();
+
+        Assert.IsNotNull(reloaded);
+        NativeLibrarySnapshotVerifier.AssertEquivalent(initial, reloaded);
+    }
+
+    [TestMethod]
     public async Task HierarchyCrud_RepairsOrdersActiveStateAndTargetLinks()
     {
         using var directory = new TemporaryRepositoryDirectory();

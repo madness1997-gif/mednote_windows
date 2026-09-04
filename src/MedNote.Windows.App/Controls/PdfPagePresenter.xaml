@@ -49,6 +49,9 @@
                     x:Name="SelectionCanvas"
                     IsHitTestVisible="False" />
                 <Canvas
+                    x:Name="SourceFocusCanvas"
+                    IsHitTestVisible="False" />
+                <Canvas
                     x:Name="InteractionCanvas"
                     IsHitTestVisible="False" />
                 <ProgressRing

@@ -41,7 +41,7 @@ The first vertical slice already contains:
   per-document 60-step undo/redo;
 - PDF-coordinate annotation overlays that remain anchored through zoom, fit,
   continuous/single layout, DPI and Reader rotation changes;
-- high-resolution PDFium crop results ready for the future Note pane;
+- high-resolution PDFium crop results embedded as native RTF PNG blocks in the active Sheet;
 - atomic PDFium export that flattens web-compatible annotations into page
   content without rasterizing the source document;
 - shared Note hierarchy/Document-link contracts with native RTF Sheet content;
@@ -54,6 +54,10 @@ The first vertical slice already contains:
   pane switching that preserves PDF position and Note caret;
 - a lazy active-Sheet RichEdit editor with native RTF autosave, basic text/list
   formatting and a 12-point First Aid table whose content cells start empty;
+- atomic crop/body/source-link commits with editor rollback on failure;
+- active-Sheet PDF source navigation to the exact page and a transient anchored-region focus;
+- blank native tables plus column-ratio and row-height presets for new First Aid,
+  table, and image–notes blocks;
 - a concrete one-way web-v6 readable-text converter that emits native RTF.
 
 The M3 Reader now implements renderer-independent PDF outline destinations,
@@ -82,6 +86,7 @@ contracts do not depend on native handle types.
 
 Read [architecture.md](docs/architecture.md),
 [m4.2-native-workspace.md](docs/m4.2-native-workspace.md),
+[m4.3-note-integration.md](docs/m4.3-note-integration.md),
 [web-compatibility.md](docs/web-compatibility.md), and
 [roadmap.md](docs/roadmap.md) before expanding the app.
 The PDFium selection and threading boundary are recorded in
@@ -117,6 +122,7 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-M4.2 does not yet implement source anchors, crop/image handoff into Note,
-advanced block/canvas editing, reverse RTF→web conversion, Google Drive sync,
-or an installer. Those stay in M4.3 or M5.
+M4.3 does not implement reverse RTF→web conversion, Google Drive sync, an
+installer/updater, crash diagnostics, or hardened shutdown coordination. Those
+remain M5 work. Existing RTF tables use insertion-time sizing presets because
+Windows App SDK RichEdit has no supported live table-resize object model.

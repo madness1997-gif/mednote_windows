@@ -112,10 +112,74 @@ public sealed class NoteEditorController : IAsyncDisposable
 
     public void ToggleNumberedList() => ToggleList(MarkerType.Arabic);
 
-    public void InsertFirstAid()
+    public void InsertFirstAid(double firstColumnShare, double rowHeightPoints)
     {
-        _editor.Document.Selection.SetText(TextSetOptions.FormatRtf, NativeNoteTemplates.FirstAidRtf);
+        _editor.Document.Selection.SetText(
+            TextSetOptions.FormatRtf,
+            NativeNoteTemplates.FirstAidRtfWithLayout(firstColumnShare, rowHeightPoints));
         QueueSave();
+        FocusEditor();
+    }
+
+    public void InsertBlankTable(int rows, int columns, double firstColumnShare, double rowHeightPoints)
+    {
+        _editor.Document.Selection.SetText(
+            TextSetOptions.FormatRtf,
+            NativeNoteTemplates.BlankTableRtf(rows, columns, firstColumnShare, rowHeightPoints));
+        QueueSave();
+        FocusEditor();
+    }
+
+    public async Task InsertPdfCropAsync(
+        PdfCropResult crop,
+        string documentId,
+        string documentName,
+        double imageColumnShare,
+        double rowHeightPoints,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(crop);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
+        if (!string.Equals(crop.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException($"Note chỉ nhúng crop PNG; nhận được {crop.ContentType}.");
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _saveTimer.Stop();
+        await _saveGate.WaitAsync(cancellationToken);
+        _editor.Document.GetText(TextGetOptions.FormatRtf, out var previousRtf);
+        var previousSelection = (
+            _editor.Document.Selection.StartPosition,
+            _editor.Document.Selection.EndPosition);
+        _loading = true;
+        try
+        {
+            var sourceLabel = $"Nguồn: {documentName} · trang {crop.Page}";
+            var fragment = NativeNoteTemplates.PdfCropBlockRtf(
+                crop.ImageBytes,
+                crop.PixelWidth,
+                crop.PixelHeight,
+                imageColumnShare,
+                rowHeightPoints,
+                sourceLabel);
+            _editor.Document.Selection.SetText(TextSetOptions.FormatRtf, fragment);
+            _editor.Document.GetText(TextGetOptions.FormatRtf, out var nextRtf);
+            await _viewModel.SavePdfCropAsync(nextRtf, documentId, crop, cancellationToken);
+            FocusEditor();
+        }
+        catch
+        {
+            _editor.Document.SetText(TextSetOptions.FormatRtf, previousRtf);
+            _editor.Document.Selection.SetRange(previousSelection.StartPosition, previousSelection.EndPosition);
+            throw;
+        }
+        finally
+        {
+            _loading = false;
+            _saveGate.Release();
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -4,6 +4,8 @@ namespace MedNote.Windows.App.ViewModels;
 
 public sealed partial class ReaderViewModel
 {
+    public event Action<PdfCropResult>? CropCreated;
+
     public IReadOnlyList<PdfAnnotation> Annotations => _annotationSession.Annotations;
 
     public int AnnotationCount => Annotations.Count;
@@ -136,8 +138,12 @@ public sealed partial class ReaderViewModel
             cancellationToken);
         LastCropResult = result;
         StatusText = $"Đã crop trang {result.Page} — sẵn sàng gửi sang Note";
+        CropCreated?.Invoke(result);
         return result;
     }
+
+    internal void ReportCropInserted(int page) =>
+        StatusText = $"Đã chèn crop trang {page} vào Note";
 
     public async ValueTask ExportFlattenedAsync(
         string outputPath,

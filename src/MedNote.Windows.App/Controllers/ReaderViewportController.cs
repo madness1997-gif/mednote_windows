@@ -93,6 +93,51 @@ public sealed class ReaderViewportController : IDisposable
         return page;
     }
 
+    public async Task<int> NavigateToSourceAsync(
+        int requestedPage,
+        PdfAnnotationRect? rectangle,
+        CancellationToken cancellationToken = default)
+    {
+        var page = NavigateToPage(requestedPage, disableAnimation: true);
+        if (rectangle is null || page > _viewModel.Pages.Count)
+        {
+            return page;
+        }
+
+        var generation = Interlocked.Increment(ref _restoreGeneration);
+        await NextUiTurnAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        var pageViewModel = _viewModel.Pages[page - 1];
+        var display = pageViewModel.AnnotationRectToDisplay(rectangle.Value);
+        var viewportInset = Math.Max(24d, _surface.ActualHeight * 0.24d);
+        if (_viewModel.ViewMode == PdfViewMode.Single)
+        {
+            _singlePage.ChangeView(
+                _singlePage.HorizontalOffset,
+                Math.Max(0d, display.Top - viewportInset),
+                null,
+                true);
+            return page;
+        }
+
+        EnsureContinuousScrollViewer();
+        var container = await WaitForContainerAsync(pageViewModel, generation);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (container is not null
+            && generation == Volatile.Read(ref _restoreGeneration)
+            && _continuousScrollViewer is not null)
+        {
+            var location = container.TransformToVisual(_continuousPages).TransformPoint(new Point());
+            _continuousScrollViewer.ChangeView(
+                _continuousScrollViewer.HorizontalOffset,
+                Math.Max(0d, _continuousScrollViewer.VerticalOffset + location.Y + display.Top - viewportInset),
+                null,
+                true);
+        }
+
+        return page;
+    }
+
     public void OnViewModeApplied()
     {
         if (_viewModel.ViewMode == PdfViewMode.Continuous)

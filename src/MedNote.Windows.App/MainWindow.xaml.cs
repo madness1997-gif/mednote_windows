@@ -48,6 +48,8 @@ public sealed partial class MainWindow : Window
 
         NoteWorkspacePane.Attach(NoteViewModel);
         NoteWorkspacePane.OperationFailed += OnNoteOperationFailed;
+        NoteWorkspacePane.SourceRequested += OnNoteSourceRequested;
+        ViewModel.CropCreated += OnReaderCropCreated;
 
         _viewport = new ReaderViewportController(
             ViewModel,
@@ -286,6 +288,11 @@ public sealed partial class MainWindow : Window
 
         _viewport.CaptureCurrentPosition();
         _viewport.Dispose();
+        _sourceFocusCancellation?.Cancel();
+        _sourceFocusCancellation?.Dispose();
+        _sourceFocusPage?.SetSourceFocus(null);
+        ViewModel.CropCreated -= OnReaderCropCreated;
+        NoteWorkspacePane.SourceRequested -= OnNoteSourceRequested;
         NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
         await NoteWorkspacePane.DisposeAsync();
         await _workspacePreferenceSave;

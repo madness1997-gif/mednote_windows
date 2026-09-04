@@ -55,6 +55,8 @@ public sealed partial class ReaderViewModel
         private set => SetProperty(ref _documentName, value);
     }
 
+    public string? DocumentId => _documentId;
+
     public string StatusText
     {
         get => _statusText;

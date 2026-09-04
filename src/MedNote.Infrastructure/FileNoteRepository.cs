@@ -206,6 +206,47 @@ public sealed partial class FileNoteRepository : INoteRepository
         }, cancellationToken);
     }
 
+    public async ValueTask<DocumentGraph> SaveLinkedSheetContentAsync(
+        string sheetId,
+        RtfSheetContent content,
+        NoteDocumentLink link,
+        DocumentLinkRelation relation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentNullException.ThrowIfNull(relation);
+        return await LockedAsync(async () =>
+        {
+            var manifest = await RequireManifestAsync(cancellationToken);
+            if (!manifest.Notes.Sheets.Any(record => record.Id == sheetId))
+            {
+                throw new NoteRepositoryMutationException($"Không tìm thấy Sheet {sheetId}.");
+            }
+
+            if (link.TargetType != DocumentLinkTargetType.Sheet || link.TargetId != sheetId)
+            {
+                throw new NoteRepositoryMutationException("Liên kết PDF không trỏ tới Sheet đang lưu.");
+            }
+
+            NoteLibraryValidator.AssertSheetContentValid(sheetId, content);
+            var documents = DocumentGraphOperations.UpsertContentLink(
+                manifest.Documents,
+                Clone(link),
+                Clone(relation));
+            NoteLibraryValidator.AssertDocumentGraphValid(documents, manifest.Notes);
+            var reference = await WriteSheetBlobAsync(content, cancellationToken);
+            var blobs = new Dictionary<string, SheetBlobReference>(manifest.SheetBlobs, StringComparer.Ordinal)
+            {
+                [sheetId] = reference,
+            };
+            await CommitManifestAsync(
+                Touch(manifest with { Documents = documents, SheetBlobs = blobs }),
+                cancellationToken);
+            return Clone(documents);
+        }, cancellationToken);
+    }
+
     public async ValueTask SetPreferencesAsync(LibraryPreferences preferences, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preferences);

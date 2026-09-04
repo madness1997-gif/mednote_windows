@@ -4,6 +4,17 @@ namespace MedNote.Windows.App.ViewModels;
 
 public sealed record NoteSheetNavigationItem(string Id, string Label);
 
+public sealed record NoteSourceAnchorItem(
+    string RelationId,
+    string DocumentId,
+    string DocumentName,
+    string? LocalPath,
+    int Page,
+    PdfAnnotationRect? Rect)
+{
+    public string DisplayLabel => $"{DocumentName} · tr. {Page}";
+}
+
 public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
 {
     private readonly INoteRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
@@ -13,6 +24,7 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
     private IReadOnlyList<SectionRecord> _sections = [];
     private IReadOnlyList<PageRecord> _pages = [];
     private IReadOnlyList<NoteSheetNavigationItem> _sheets = [];
+    private IReadOnlyList<NoteSourceAnchorItem> _sources = [];
     private LibraryPreferences _preferences = new();
     private string _activeRtf = RtfDocument.Empty;
     private string _activePageTitle = "Trang mới";
@@ -42,6 +54,12 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
     {
         get => _sheets;
         private set => SetProperty(ref _sheets, value);
+    }
+
+    public IReadOnlyList<NoteSourceAnchorItem> Sources
+    {
+        get => _sources;
+        private set => SetProperty(ref _sources, value);
     }
 
     public LibraryPreferences Preferences
@@ -213,6 +231,42 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
         StatusText = "Đã lưu";
     }
 
+    public async Task SavePdfCropAsync(
+        string rtf,
+        string documentId,
+        PdfCropResult crop,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        ArgumentNullException.ThrowIfNull(crop);
+        if (!IsReady || string.IsNullOrEmpty(Active.ActiveSheetId))
+        {
+            throw new InvalidOperationException("Note chưa sẵn sàng nhận crop PDF.");
+        }
+
+        var content = new RtfSheetContent { Rtf = rtf };
+        NoteLibraryValidator.AssertSheetContentValid(Active.ActiveSheetId, content);
+        var pair = PdfContentLinks.Create(documentId, Active.ActiveSheetId, crop.Page, crop.Rect);
+        StatusText = "Đang lưu crop và nguồn PDF…";
+        try
+        {
+            var documents = await _repository.SaveLinkedSheetContentAsync(
+                Active.ActiveSheetId,
+                content,
+                pair.Link,
+                pair.Relation,
+                cancellationToken);
+            ActiveRtf = rtf;
+            ApplySources(documents);
+            StatusText = $"Đã chèn crop từ trang {crop.Page}";
+        }
+        catch
+        {
+            StatusText = "Chưa lưu được crop PDF";
+            throw;
+        }
+    }
+
     public async Task SaveWorkspacePreferencesAsync(
         WorkspaceMode mode,
         double readerShare,
@@ -240,10 +294,14 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
         }
     }
 
+    internal void ReportSourceOpened(NoteSourceAnchorItem source) =>
+        StatusText = $"Đã mở {source.DocumentName} · trang {source.Page}";
+
     private async Task ReloadAsync(CancellationToken cancellationToken)
     {
         await ReloadStructureAsync(cancellationToken);
         await LoadActiveContentAsync(cancellationToken);
+        await ReloadSourcesAsync(cancellationToken);
     }
 
     private async Task ReloadStructureAsync(CancellationToken cancellationToken)
@@ -257,6 +315,7 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
     {
         ApplyStructure(notes);
         await LoadActiveContentAsync(cancellationToken);
+        await ReloadSourcesAsync(cancellationToken);
     }
 
     private void ApplyStructure(NoteStructure notes)
@@ -285,6 +344,26 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
         var content = await _repository.LoadSheetContentAsync(Active.ActiveSheetId, cancellationToken)
             ?? throw new InvalidDataException($"Không tải được nội dung Sheet {Active.ActiveSheetId}.");
         ActiveRtf = content.Rtf;
+    }
+
+    private async Task ReloadSourcesAsync(CancellationToken cancellationToken)
+    {
+        var documents = await _repository.LoadDocumentGraphAsync(cancellationToken)
+            ?? throw new InvalidDataException("Note Library native thiếu Document graph.");
+        ApplySources(documents);
+    }
+
+    private void ApplySources(DocumentGraph graph)
+    {
+        Sources = PdfContentLinks.ResolveForSheet(graph, Active.ActiveSheetId)
+            .Select(source => new NoteSourceAnchorItem(
+                source.RelationId,
+                source.DocumentId,
+                source.DocumentName,
+                source.LocalPath,
+                source.Page,
+                source.Rect))
+            .ToList();
     }
 
     private SheetRecord? FirstSheetInNotebook(string notebookId)

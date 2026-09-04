@@ -17,6 +17,7 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     private RenderedPdfPage? _thumbnailSurface;
     private PdfTextPage? _textPage;
     private PdfTextSelection? _selection;
+    private PdfAnnotationRect? _sourceFocusRect;
     private double _displayWidth;
     private double _displayHeight;
     private int _rotation;
@@ -81,6 +82,12 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     {
         get => _selection;
         private set => SetProperty(ref _selection, value);
+    }
+
+    public PdfAnnotationRect? SourceFocusRect
+    {
+        get => _sourceFocusRect;
+        private set => SetProperty(ref _sourceFocusRect, value);
     }
 
     public IReadOnlyList<PdfAnnotation> Annotations => _owner.GetAnnotationsForPage(Number);
@@ -407,6 +414,9 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
     internal void NotifyAnnotationsChanged() => OnPropertyChanged(nameof(Annotations));
 
     internal void SetSelectionFromOwner(PdfTextSelection? selection) => Selection = selection;
+
+    internal void SetSourceFocus(PdfAnnotationRect? rectangle) =>
+        SourceFocusRect = rectangle?.Normalize();
 
     internal void ReportPresentationError(Exception exception)
     {

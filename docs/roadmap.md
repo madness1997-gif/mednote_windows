@@ -60,11 +60,14 @@ See [p2.5-stabilization.md](p2.5-stabilization.md).
 - [x] native Reader cut-over, Reader/Note split layout and F6 switching;
 - [x] RichEdit-based native editing, basic formatting and the default First Aid table;
 - [x] concrete one-way web-v6 readable-text → RTF conversion;
-- [ ] source anchors from Note back to PDF;
+- [x] atomic PDF crop/image handoff into the active RTF Sheet;
+- [x] source anchors from Note back to the exact PDF page/region;
+- [x] native blank-table and First Aid layout presets for column ratio and row height;
 - [x] exact Reader position and Note caret preservation across pane changes.
 
 See [m4.1-data-foundation.md](m4.1-data-foundation.md) and
-[m4.2-native-workspace.md](m4.2-native-workspace.md).
+[m4.2-native-workspace.md](m4.2-native-workspace.md), then
+[m4.3-note-integration.md](m4.3-note-integration.md).
 
 ## M5 — Sync and distribution
 

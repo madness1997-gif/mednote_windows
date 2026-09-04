@@ -21,6 +21,68 @@ public sealed class NoteLibraryValidationTests
     }
 
     [TestMethod]
+    public void NativeBlocks_UseRequestedGridSizingAndEmbedPngWithoutPlaceholderText()
+    {
+        var table = NativeNoteTemplates.BlankTableRtf(3, 2, 0.3d, 52d);
+        var crop = NativeNoteTemplates.PdfCropBlockRtf(
+            [137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3],
+            640,
+            480,
+            0.3d,
+            36d,
+            "Nguồn: Harrison.pdf · trang 12");
+
+        Assert.AreEqual(3, Count(table, @"\trowd"));
+        StringAssert.Contains(table, @"\trrh1040");
+        StringAssert.Contains(table, @"\cellx3000");
+        StringAssert.Contains(crop, @"\pict\pngblip");
+        StringAssert.Contains(crop, "89504e470d0a1a0a");
+        Assert.IsFalse(crop.Contains(@"\fs20", StringComparison.Ordinal));
+        Assert.IsFalse(table.Contains("Nội dung", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(RtfDocument.IsRtf(crop));
+    }
+
+    [TestMethod]
+    public void PdfContentLink_UsesWebCompatibleAnchorAndRejectsMismatchedPair()
+    {
+        var rect = new PdfAnnotationRect(10, 20, 110, 220);
+        var pair = PdfContentLinks.Create(
+            "doc-1",
+            "sheet-1",
+            12,
+            rect,
+            createdAt: 99,
+            linkId: "crop-link",
+            relationId: "crop-relation");
+        var graph = NoteLibraryTestData.WithLinkedDocument(NoteLibraryTestData.Create(1)).Documents;
+
+        var next = DocumentGraphOperations.UpsertContentLink(graph, pair.Link, pair.Relation);
+
+        Assert.AreEqual(DocumentLinkTargetType.Sheet, pair.Link.TargetType);
+        Assert.AreEqual(12, pair.Relation.ContentAnchor?.PdfPage);
+        Assert.IsTrue(PdfContentLinks.TryReadRect(pair.Relation.ContentAnchor, out var actualRect));
+        Assert.AreEqual(rect, actualRect);
+        var anchorRect = pair.Relation.ContentAnchor?.Rect;
+        Assert.IsNotNull(anchorRect);
+        Assert.AreEqual(4, anchorRect.Value.EnumerateObject().Count());
+        Assert.IsTrue(next.Links.Any(link => link.Id == "crop-link"));
+        var sources = PdfContentLinks.ResolveForSheet(next, "sheet-1");
+        Assert.AreEqual(1, sources.Count);
+        Assert.AreEqual("Harrison.pdf", sources[0].DocumentName);
+        Assert.AreEqual(rect, sources[0].Rect);
+        Assert.ThrowsExactly<NoteRepositoryMutationException>(() => DocumentGraphOperations.UpsertContentLink(
+            graph,
+            pair.Link,
+            pair.Relation with { SourceId = "other-document" }));
+        var legacyAnchor = new DocumentContentAnchor
+        {
+            Rect = JsonSerializer.SerializeToElement(new { x = 10, y = 20, width = 100, height = 200 }),
+        };
+        Assert.IsTrue(PdfContentLinks.TryReadRect(legacyAnchor, out var legacyRect));
+        Assert.AreEqual(rect, legacyRect);
+    }
+
+    [TestMethod]
     public void WebV6TextProjection_ExtractsReadableTextAndRejectsOpaqueData()
     {
         var source = JsonSerializer.SerializeToElement(new

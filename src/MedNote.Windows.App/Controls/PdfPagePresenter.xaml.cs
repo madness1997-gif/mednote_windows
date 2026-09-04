@@ -44,6 +44,7 @@ public sealed partial class PdfPagePresenter : UserControl
         PresentSurface(_boundPage?.Surface);
         DrawAnnotations();
         DrawSelection();
+        DrawSourceFocus();
         RequestRender();
     }
 
@@ -57,6 +58,7 @@ public sealed partial class PdfPagePresenter : UserControl
         ClearDirect2DSurface();
         AnnotationCanvas.Children.Clear();
         SelectionCanvas.Children.Clear();
+        SourceFocusCanvas.Children.Clear();
         InteractionCanvas.Children.Clear();
         BindPage(null);
     }
@@ -69,6 +71,7 @@ public sealed partial class PdfPagePresenter : UserControl
             PresentSurface(_boundPage?.Surface);
             DrawAnnotations();
             DrawSelection();
+            DrawSourceFocus();
             RequestRender();
         }
     }
@@ -90,6 +93,7 @@ public sealed partial class PdfPagePresenter : UserControl
         {
             DrawAnnotations();
             DrawSelection();
+            DrawSourceFocus();
             RequestRender();
         }
         else if (e.PropertyName == nameof(PdfPageViewModel.Selection))
@@ -99,6 +103,10 @@ public sealed partial class PdfPagePresenter : UserControl
         else if (e.PropertyName == nameof(PdfPageViewModel.Annotations))
         {
             DrawAnnotations();
+        }
+        else if (e.PropertyName == nameof(PdfPageViewModel.SourceFocusRect))
+        {
+            DrawSourceFocus();
         }
     }
 

@@ -107,18 +107,49 @@
                         Style="{StaticResource ToolbarButtonStyle}"
                         ToolTipService.ToolTip="Thêm tờ" />
                 </Grid>
-                <StackPanel Grid.Row="8" Margin="0,14,0,0" VerticalAlignment="Bottom" Spacing="4">
+                <Grid Grid.Row="8" Margin="0,12,0,0" RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <TextBlock
                         FontSize="10"
+                        FontWeight="SemiBold"
                         Foreground="{ThemeResource MutedTextBrush}"
-                        Text="RTF native · tự động lưu"
-                        TextWrapping="Wrap" />
-                    <TextBlock
-                        FontSize="10"
-                        Foreground="{ThemeResource MedNoteTealBrush}"
-                        Text="{Binding StatusText}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
+                        Text="NGUỒN PDF" />
+                    <ListView
+                        x:Name="SourceList"
+                        Grid.Row="1"
+                        IsItemClickEnabled="True"
+                        ItemClick="OnSourceClicked"
+                        ItemsSource="{Binding Sources}"
+                        SelectionMode="None">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock
+                                    FontSize="10"
+                                    Foreground="{ThemeResource MedNoteNavyBrush}"
+                                    Text="{Binding DisplayLabel}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="Wrap"
+                                    ToolTipService.ToolTip="Mở vị trí nguồn trong PDF" />
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <StackPanel Grid.Row="2" Spacing="4">
+                        <TextBlock
+                            FontSize="10"
+                            Foreground="{ThemeResource MutedTextBrush}"
+                            Text="RTF native · tự động lưu"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            FontSize="10"
+                            Foreground="{ThemeResource MedNoteTealBrush}"
+                            Text="{Binding StatusText}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
@@ -163,6 +194,35 @@
                         <Button Click="OnBulletClicked" Content="• Danh sách" Style="{StaticResource ToolbarButtonStyle}" />
                         <Button Click="OnNumberedClicked" Content="1. Danh sách" Style="{StaticResource ToolbarButtonStyle}" />
                         <Border Width="1" Height="24" Margin="4,0" Background="{ThemeResource SubtleBorderBrush}" />
+                        <Button Content="Bảng" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Chèn bảng RTF có ô trống">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Click="OnInsertTableClicked" Tag="2x2" Text="2 × 2" />
+                                    <MenuFlyoutItem Click="OnInsertTableClicked" Tag="3x2" Text="3 hàng × 2 cột" />
+                                    <MenuFlyoutItem Click="OnInsertTableClicked" Tag="3x3" Text="3 × 3" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <ComboBox
+                            x:Name="LayoutRatioBox"
+                            Width="104"
+                            Height="32"
+                            SelectedIndex="0"
+                            ToolTipService.ToolTip="Tỷ lệ cột cho khối mới">
+                            <ComboBoxItem Content="Cột 30 / 70" Tag="0.3" />
+                            <ComboBoxItem Content="Cột 50 / 50" Tag="0.5" />
+                            <ComboBoxItem Content="Cột 70 / 30" Tag="0.7" />
+                        </ComboBox>
+                        <ComboBox
+                            x:Name="RowHeightBox"
+                            Width="88"
+                            Height="32"
+                            SelectedIndex="1"
+                            ToolTipService.ToolTip="Chiều cao hàng cho khối mới">
+                            <ComboBoxItem Content="Hàng 24" Tag="24" />
+                            <ComboBoxItem Content="Hàng 36" Tag="36" />
+                            <ComboBoxItem Content="Hàng 52" Tag="52" />
+                        </ComboBox>
                         <Button
                             Padding="10,0"
                             Background="#FFFFE8E4"

@@ -136,6 +136,42 @@ public static class DocumentGraphOperations
         LinkRelations = Upsert(source.LinkRelations, relation, record => record.Id),
     };
 
+    public static DocumentGraph UpsertContentLink(
+        DocumentGraph source,
+        NoteDocumentLink link,
+        DocumentLinkRelation relation)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(link);
+        ArgumentNullException.ThrowIfNull(relation);
+        if (string.IsNullOrWhiteSpace(link.Id)
+            || string.IsNullOrWhiteSpace(link.DocumentId)
+            || string.IsNullOrWhiteSpace(link.TargetId)
+            || link.TargetType != DocumentLinkTargetType.Sheet
+            || relation.Kind != DocumentRelationKind.Content
+            || relation.SourceType != DocumentRelationSourceType.Document
+            || relation.SourceId != link.DocumentId
+            || relation.ContentAnchor is not { PdfPage: >= 1 } anchor
+            || anchor.DocumentId != link.DocumentId
+            || !PdfContentLinks.TryReadRect(anchor, out _)
+            || relation.LinkIds is null
+            || !relation.LinkIds.Contains(link.Id, StringComparer.Ordinal))
+        {
+            throw new NoteRepositoryMutationException("Liên kết nội dung PDF phải trỏ từ đúng Document tới một Sheet và chứa anchor trang hợp lệ.");
+        }
+
+        if (!source.Documents.Any(document => document.Id == link.DocumentId))
+        {
+            throw new NoteRepositoryMutationException($"Không tìm thấy Document nguồn {link.DocumentId}.");
+        }
+
+        return source with
+        {
+            Links = Upsert(source.Links, link, record => record.Id),
+            LinkRelations = Upsert(source.LinkRelations, relation, record => record.Id),
+        };
+    }
+
     public static DocumentGraph RemoveLink(DocumentGraph source, string id)
     {
         var links = source.Links.Where(record => record.Id != id).ToList();

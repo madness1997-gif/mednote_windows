@@ -28,6 +28,10 @@ The following JSON fields retain their web names and values:
 
 The native-only `position` extension stores an anchor page, a normalized offset within that page, and horizontal offset. It does not alter the existing v6 Reader payload.
 
+M4.3 content relations reuse the web `contentAnchor` envelope. PDF rectangles
+are serialized with only `x1`, `y1`, `x2`, and `y2`; computed native geometry
+properties never leak into JSON.
+
 ## Note-library import boundary
 
 The native app shares hierarchy, document graph and Reader contracts with web

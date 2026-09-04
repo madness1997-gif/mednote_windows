@@ -10,6 +10,31 @@ namespace MedNote.Windows.App.Controls;
 
 public sealed partial class PdfPagePresenter
 {
+    private void DrawSourceFocus()
+    {
+        SourceFocusCanvas.Children.Clear();
+        if (_boundPage is not { SourceFocusRect: { } source } page)
+        {
+            return;
+        }
+
+        var bounds = page.AnnotationRectToDisplay(source);
+        var brush = new SolidColorBrush(ColorHelper.FromArgb(255, 14, 107, 112));
+        AddPositioned(
+            SourceFocusCanvas,
+            new Rectangle
+            {
+                Width = bounds.Width,
+                Height = bounds.Height,
+                Fill = new SolidColorBrush(ColorHelper.FromArgb(42, 14, 107, 112)),
+                Stroke = brush,
+                StrokeThickness = 2.5d,
+                StrokeDashArray = new DoubleCollection { 6d, 3d },
+            },
+            bounds.Left,
+            bounds.Top);
+    }
+
     private void DrawAnnotations()
     {
         AnnotationCanvas.Children.Clear();

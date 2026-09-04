@@ -30,16 +30,22 @@ public readonly record struct PdfAnnotationPoint(double X, double Y, double Pres
 
 public readonly record struct PdfAnnotationRect(double X1, double Y1, double X2, double Y2)
 {
+    [JsonIgnore]
     public double Left => Math.Min(X1, X2);
 
+    [JsonIgnore]
     public double Bottom => Math.Min(Y1, Y2);
 
+    [JsonIgnore]
     public double Right => Math.Max(X1, X2);
 
+    [JsonIgnore]
     public double Top => Math.Max(Y1, Y2);
 
+    [JsonIgnore]
     public double Width => Math.Max(0d, Right - Left);
 
+    [JsonIgnore]
     public double Height => Math.Max(0d, Top - Bottom);
 
     public PdfAnnotationRect Normalize() => new(

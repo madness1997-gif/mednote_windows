@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using MedNote.Core;
 using MedNote.Windows.App.Controllers;
 using MedNote.Windows.App.ViewModels;
@@ -21,6 +22,8 @@ public sealed partial class NotePane : UserControl
     }
 
     public event Action<Exception>? OperationFailed;
+
+    public event Action<NoteSourceAnchorItem>? SourceRequested;
 
     public bool ContainsFocus()
     {
@@ -67,6 +70,37 @@ public sealed partial class NotePane : UserControl
         {
             _editor.CaptureSelection();
             await _editor.SaveNowAsync(cancellationToken);
+        }
+    }
+
+    public async Task InsertPdfCropAsync(
+        PdfCropResult crop,
+        string documentId,
+        string documentName,
+        Func<CancellationToken, ValueTask> prepareSource,
+        CancellationToken cancellationToken = default)
+    {
+        if (_viewModel is null || _editor is null)
+        {
+            throw new InvalidOperationException("NotePane chưa sẵn sàng.");
+        }
+
+        ArgumentNullException.ThrowIfNull(prepareSource);
+        await _navigationGate.WaitAsync(cancellationToken);
+        try
+        {
+            await prepareSource(cancellationToken);
+            await _editor.InsertPdfCropAsync(
+                crop,
+                documentId,
+                documentName,
+                SelectedColumnShare(),
+                SelectedRowHeight(),
+                cancellationToken);
+        }
+        finally
+        {
+            _navigationGate.Release();
         }
     }
 
@@ -156,7 +190,32 @@ public sealed partial class NotePane : UserControl
 
     private void OnNumberedClicked(object sender, RoutedEventArgs e) => _editor?.ToggleNumberedList();
 
-    private void OnFirstAidClicked(object sender, RoutedEventArgs e) => _editor?.InsertFirstAid();
+    private void OnFirstAidClicked(object sender, RoutedEventArgs e) =>
+        _editor?.InsertFirstAid(SelectedColumnShare(), SelectedRowHeight());
+
+    private void OnInsertTableClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuFlyoutItem { Tag: string value })
+        {
+            return;
+        }
+
+        var dimensions = value.Split('x');
+        if (dimensions.Length == 2
+            && int.TryParse(dimensions[0], NumberStyles.None, CultureInfo.InvariantCulture, out var rows)
+            && int.TryParse(dimensions[1], NumberStyles.None, CultureInfo.InvariantCulture, out var columns))
+        {
+            _editor?.InsertBlankTable(rows, columns, SelectedColumnShare(), SelectedRowHeight());
+        }
+    }
+
+    private void OnSourceClicked(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is NoteSourceAnchorItem source)
+        {
+            SourceRequested?.Invoke(source);
+        }
+    }
 
     private void OnFontSizeClicked(object sender, RoutedEventArgs e)
     {
@@ -226,4 +285,16 @@ public sealed partial class NotePane : UserControl
     }
 
     private void OnEditorSaveFailed(Exception exception) => OperationFailed?.Invoke(exception);
+
+    private double SelectedColumnShare() => ReadSelectedNumber(LayoutRatioBox, 0.5d);
+
+    private double SelectedRowHeight() => ReadSelectedNumber(RowHeightBox, 36d);
+
+    private static double ReadSelectedNumber(ComboBox comboBox, double fallback)
+    {
+        return comboBox.SelectedItem is ComboBoxItem { Tag: string value }
+            && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : fallback;
+    }
 }
