@@ -199,8 +199,8 @@ public sealed partial class PdfPagePresenter
                     Height = bounds.Height,
                     FontSize = Math.Clamp(bounds.Height * 0.32d, 8d, 22d),
                     FontStyle = annotation.Kind == PdfAnnotationKind.Signature
-                        ? Windows.UI.Text.FontStyle.Italic
-                        : Windows.UI.Text.FontStyle.Normal,
+                        ? global::Windows.UI.Text.FontStyle.Italic
+                        : global::Windows.UI.Text.FontStyle.Normal,
                     FontWeight = annotation.Kind == PdfAnnotationKind.Stamp
                         ? Microsoft.UI.Text.FontWeights.Bold
                         : Microsoft.UI.Text.FontWeights.Normal,
@@ -432,7 +432,7 @@ public sealed partial class PdfPagePresenter
         return annotation.Rect is { } rectangle ? [rectangle] : [];
     }
 
-    private static Windows.UI.Color ParseColor(string color)
+    private static global::Windows.UI.Color ParseColor(string color)
     {
         var value = PdfAnnotationColor.Normalize(color);
         return ColorHelper.FromArgb(
