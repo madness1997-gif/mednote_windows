@@ -263,10 +263,131 @@ jobs:
             Where-Object { $_.Name -match 'electron|webview2loader|chrome|chromium' }
           if ($forbidden) { throw "Web runtime leaked into native artifact: $($forbidden.Name -join ', ')" }
           Compress-Archive -Path artifacts/MedNote-Reader-Windows/* -DestinationPath artifacts/MedNote-Reader-Windows-x64.zip -Force
+      - name: Install pinned Inno Setup compiler
+        shell: pwsh
+        run: choco install innosetup --version=6.7.1 --yes --no-progress
+      - name: Build versioned Windows installer
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/MedNote.Windows.App/MedNote.Windows.App.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "App Version must be numeric for the Windows installer: '$version'"
+          }
+
+          $publishDir = (Resolve-Path artifacts/MedNote-Reader-Windows).Path
+          $outputDir = New-Item artifacts/installer -ItemType Directory -Force
+          & ISCC.exe `
+            "--define=AppVersion=$version" `
+            "--define=SourceDir=$publishDir" `
+            "--define=OutputDir=$($outputDir.FullName)" `
+            installer/MedNote.Reader.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
+          }
+      - name: Smoke-test install, launch and safe uninstall
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem artifacts/installer/MedNote-Reader-Setup-*-x64.exe -File -ErrorAction Stop)
+          if ($installers.Count -ne 1) { throw "Expected one installer, found $($installers.Count)" }
+          $installer = $installers[0]
+          $installDir = Join-Path $env:RUNNER_TEMP "MedNoteReaderInstalled"
+          $installLog = Join-Path $env:RUNNER_TEMP "mednote-install.log"
+          $uninstallLog = Join-Path $env:RUNNER_TEMP "mednote-uninstall.log"
+          $dataDir = Join-Path $env:LOCALAPPDATA "MedNote Reader"
+          $dataSentinel = Join-Path $dataDir "installer-preserves-user-data.txt"
+          New-Item $dataDir -ItemType Directory -Force | Out-Null
+          Set-Content $dataSentinel "preserve-on-uninstall" -Encoding ascii
+
+          $setup = Start-Process $installer.FullName -Wait -PassThru -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=$installDir",
+            "/LOG=$installLog"
+          )
+          if ($setup.ExitCode -ne 0) {
+            Get-Content $installLog -ErrorAction SilentlyContinue
+            throw "Installer exited with code $($setup.ExitCode)"
+          }
+
+          $installedExe = Join-Path $installDir "MedNote.Reader.exe"
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          if (-not (Test-Path $installedExe)) { throw "Installed application executable is missing" }
+          if (-not (Test-Path $uninstaller)) { throw "Installed uninstaller is missing" }
+
+          $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\MedNote Reader.lnk"
+          if (-not (Test-Path $shortcut)) { throw "Start Menu shortcut is missing" }
+
+          $uninstallEntry = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction Stop |
+            Get-ItemProperty |
+            Where-Object DisplayName -eq "MedNote Reader"
+          if (-not $uninstallEntry) { throw "Apps & Features uninstall entry is missing" }
+
+          $smokePdf = Join-Path $env:RUNNER_TEMP "mednote-installed-smoke.pdf"
+          $renderProbe = Join-Path $env:RUNNER_TEMP "mednote-installed-smoke.txt"
+          $base64 = (Get-Content tests/fixtures/render-smoke.pdf.base64 -Raw).Trim()
+          [IO.File]::WriteAllBytes($smokePdf, [Convert]::FromBase64String($base64))
+          $env:MEDNOTE_RENDER_PROBE = $renderProbe
+          $env:MEDNOTE_RENDER_TARGET_PAGE = "1"
+          $app = Start-Process $installedExe -ArgumentList "`"$smokePdf`"" -PassThru
+          try {
+            foreach ($attempt in 1..45) {
+              Start-Sleep -Seconds 1
+              if ($app.HasExited -or (Test-Path $renderProbe)) { break }
+            }
+            if ($app.HasExited) { throw "Installed MedNote Reader exited with code $($app.ExitCode)" }
+            if (-not (Test-Path $renderProbe)) { throw "Installed MedNote Reader did not render the smoke PDF" }
+          } finally {
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+            Remove-Item Env:MEDNOTE_RENDER_PROBE -ErrorAction SilentlyContinue
+            Remove-Item Env:MEDNOTE_RENDER_TARGET_PAGE -ErrorAction SilentlyContinue
+          }
+
+          $uninstall = Start-Process $uninstaller -Wait -PassThru -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/LOG=$uninstallLog"
+          )
+          if ($uninstall.ExitCode -ne 0) {
+            Get-Content $uninstallLog -ErrorAction SilentlyContinue
+            throw "Uninstaller exited with code $($uninstall.ExitCode)"
+          }
+
+          foreach ($attempt in 1..20) {
+            if (-not (Test-Path $installDir)) { break }
+            Start-Sleep -Milliseconds 250
+          }
+          if (Test-Path $installDir) { throw "Application install directory remains after uninstall" }
+          if (Test-Path $shortcut) { throw "Start Menu shortcut remains after uninstall" }
+          $remainingUninstallEntry = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction Stop |
+            Get-ItemProperty |
+            Where-Object DisplayName -eq "MedNote Reader"
+          if ($remainingUninstallEntry) { throw "Apps & Features entry remains after uninstall" }
+          if (-not (Test-Path $dataSentinel)) { throw "Uninstall removed user data" }
+          Remove-Item $dataSentinel -Force
+      - name: Generate release checksums
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem artifacts/installer/MedNote-Reader-Setup-*-x64.exe -File -ErrorAction Stop)
+          if ($installers.Count -ne 1) { throw "Expected one installer, found $($installers.Count)" }
+          $assets = @(
+            Get-Item artifacts/MedNote-Reader-Windows-x64.zip
+            $installers[0]
+          )
+          $checksums = foreach ($asset in $assets) {
+            $hash = (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($asset.Name)"
+          }
+          $checksums | Set-Content artifacts/MedNote-Reader-Windows-x64.sha256 -Encoding ascii
       - uses: actions/upload-artifact@v4
         with:
           name: MedNote-Reader-Native-Windows-x64
-          path: artifacts/MedNote-Reader-Windows-x64.zip
+          path: |
+            artifacts/installer/MedNote-Reader-Setup-*-x64.exe
+            artifacts/MedNote-Reader-Windows-x64.zip
+            artifacts/MedNote-Reader-Windows-x64.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Publish rolling preview release
@@ -279,12 +400,23 @@ jobs:
           git tag --force $tag $env:GITHUB_SHA
           git push origin "refs/tags/$tag" --force
 
+          $installers = @(Get-ChildItem artifacts/installer/MedNote-Reader-Setup-*-x64.exe -File -ErrorAction Stop)
+          if ($installers.Count -ne 1) { throw "Expected one installer, found $($installers.Count)" }
+          $installer = $installers[0]
+          $assets = @(
+            $installer.FullName,
+            "artifacts/MedNote-Reader-Windows-x64.zip",
+            "artifacts/MedNote-Reader-Windows-x64.sha256"
+          )
+          $notes = "Install with the versioned Setup EXE. The ZIP remains available for portable use. Uninstalling removes application files and shortcuts while preserving user notes under %LOCALAPPDATA%\MedNote Reader. Preview builds are currently unsigned."
+
           if (gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null) {
-            gh release upload $tag artifacts/MedNote-Reader-Windows-x64.zip `
-              --clobber --repo $env:GITHUB_REPOSITORY
+            gh release upload $tag $assets --clobber --repo $env:GITHUB_REPOSITORY
+            gh release edit $tag --prerelease --title "MedNote Reader Windows Preview" `
+              --notes $notes --repo $env:GITHUB_REPOSITORY
           } else {
-            gh release create $tag artifacts/MedNote-Reader-Windows-x64.zip `
+            gh release create $tag $assets `
               --prerelease --title "MedNote Reader Windows Preview" `
-              --notes "Windows-native preview build from main. Extract the ZIP and run MedNote.Reader.exe." `
+              --notes $notes `
               --repo $env:GITHUB_REPOSITORY
           }

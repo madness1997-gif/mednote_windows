@@ -112,7 +112,7 @@ dotnet test tests/MedNote.Core.Tests/MedNote.Core.Tests.csproj -c Release
 dotnet build src/MedNote.Windows.App/MedNote.Windows.App.csproj -c Release -p:Platform=x64
 ```
 
-To produce the self-contained folder distributed by CI:
+To produce the self-contained folder used by both the portable ZIP and installer:
 
 ```powershell
 dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
@@ -120,10 +120,21 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
   -p:WindowsAppSDKSelfContained=true -o artifacts/MedNote-Reader-Windows
 ```
 
+CI also builds `MedNote-Reader-Setup-<version>-x64.exe`, a per-user Windows
+installer for Windows 10 version 1809 or later. It creates a Start Menu shortcut
+and an Apps & Features uninstall entry; a desktop shortcut is optional. Upgrades
+reuse the same application identity and install location. Uninstall removes the
+application files and shortcuts but deliberately preserves the user's library
+under `%LOCALAPPDATA%\MedNote Reader`.
+
+The rolling [`windows-preview`](https://github.com/madness1997-gif/mednote_windows/releases/tag/windows-preview)
+release contains the installer, the portable ZIP, and SHA-256 checksums. Preview
+installers are not yet Authenticode-signed.
+
 ## Non-goals for this milestone
 
 M4.3 does not implement reverse RTF→web conversion, Google Drive sync, an
-installer/updater, crash diagnostics, or a full recovery subsystem. Those remain
-M5 work. Queued PDF crop/source work is drained before native resources are
-disposed. Existing RTF tables use insertion-time sizing presets because Windows
-App SDK RichEdit has no supported live table-resize object model.
+updater, Authenticode signing, crash diagnostics, or a full recovery subsystem.
+Those remain M5 work. Queued PDF crop/source work is drained before native
+resources are disposed. Existing RTF tables use insertion-time sizing presets
+because Windows App SDK RichEdit has no supported live table-resize object model.

@@ -73,7 +73,8 @@ See [m4.1-data-foundation.md](m4.1-data-foundation.md) and
 
 - [ ] Desktop OAuth with PKCE/loopback and `drive.appdata`;
 - [ ] conflict-safe v2 manifest sync;
-- [ ] Windows installer, safe uninstall, and shutdown lifecycle;
+- [x] Windows installer and safe uninstall that preserves user data;
+- [ ] shutdown lifecycle;
 - [ ] signed release channel, updater, crash diagnostics;
 - [ ] measure working set/startup against the Electron baseline.
 
