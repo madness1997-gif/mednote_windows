@@ -28,14 +28,22 @@ The following JSON fields retain their web names and values:
 
 The native-only `position` extension stores an anchor page, a normalized offset within that page, and horizontal offset. It does not alter the existing v6 Reader payload.
 
-## Full v6 library migration
+## Note-library import boundary
 
-Milestone 1 intentionally keeps a small Reader library rather than writing the entire note hierarchy. Full import/export must later stage and validate all of these records before cutover:
+The native app shares hierarchy, document graph and Reader contracts with web
+v6, but it does not use the web editor's SheetContent JSON at runtime. Windows
+owns one RTF document per Sheet.
+
+One-way web import validates all of these records before native cutover:
 
 - Workspace → Notebook → Section → Page → Sheet metadata;
-- one `SheetContent` record per Sheet;
+- one web JSON `SheetContent` record per Sheet;
 - Document, Context, Group, Link, and LinkRelation records;
 - v2 Drive manifest hashes;
-- unknown annotation fields.
+- unknown annotation fields;
+- successful conversion of every web Sheet to native RTF.
 
-Until that validator is implemented, the native app must never rewrite a complete web v6 backup.
+The exact web DTO and backup hash codec are isolated under
+`Compatibility.WebV6`. A failed conversion cannot replace the live native
+manifest. M4 does not promise reverse RTF→web conversion or direct editing of a
+web SheetContent record.

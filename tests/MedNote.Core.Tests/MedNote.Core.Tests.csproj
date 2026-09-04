@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MedNote.Core\MedNote.Core.csproj" />
+    <ProjectReference Include="..\..\src\MedNote.Infrastructure\MedNote.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

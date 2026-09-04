@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MedNote.Core", "src\MedNote.Core\MedNote.Core.csproj", "{295C4925-F4C2-4420-9DF4-FC4B114E620F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MedNote.Infrastructure", "src\MedNote.Infrastructure\MedNote.Infrastructure.csproj", "{AF858E08-7EC6-44F7-9164-F1D266283049}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MedNote.Windows.App", "src\MedNote.Windows.App\MedNote.Windows.App.csproj", "{0FDAC882-BAB1-4895-875D-A75F963E66A8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MedNote.Core.Tests", "tests\MedNote.Core.Tests\MedNote.Core.Tests.csproj", "{FC80B39E-52EC-44D0-9C26-589534F5036E}"
@@ -18,6 +20,10 @@ Global
 		{295C4925-F4C2-4420-9DF4-FC4B114E620F}.Debug|x64.Build.0 = Debug|Any CPU
 		{295C4925-F4C2-4420-9DF4-FC4B114E620F}.Release|x64.ActiveCfg = Release|Any CPU
 		{295C4925-F4C2-4420-9DF4-FC4B114E620F}.Release|x64.Build.0 = Release|Any CPU
+		{AF858E08-7EC6-44F7-9164-F1D266283049}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AF858E08-7EC6-44F7-9164-F1D266283049}.Debug|x64.Build.0 = Debug|Any CPU
+		{AF858E08-7EC6-44F7-9164-F1D266283049}.Release|x64.ActiveCfg = Release|Any CPU
+		{AF858E08-7EC6-44F7-9164-F1D266283049}.Release|x64.Build.0 = Release|Any CPU
 		{0FDAC882-BAB1-4895-875D-A75F963E66A8}.Debug|x64.ActiveCfg = Debug|x64
 		{0FDAC882-BAB1-4895-875D-A75F963E66A8}.Debug|x64.Build.0 = Debug|x64
 		{0FDAC882-BAB1-4895-875D-A75F963E66A8}.Release|x64.ActiveCfg = Release|x64

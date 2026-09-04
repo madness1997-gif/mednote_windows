@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MedNote.Infrastructure</RootNamespace>
+    <AssemblyName>MedNote.Infrastructure</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MedNote.Core\MedNote.Core.csproj" />
+  </ItemGroup>
+</Project>

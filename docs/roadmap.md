@@ -55,12 +55,14 @@ See [p2.5-stabilization.md](p2.5-stabilization.md).
 
 ## M4 — Native Note foundation
 
-- [ ] v6 repository and staged backup import;
-- [ ] library hierarchy and Document–Page/Sheet links;
+- [x] native RTF repository, staged replacement and isolated web-v6 import contract;
+- [x] shared library hierarchy and Document–Page/Sheet links;
 - [ ] Reader/Note split layout and F6 switching;
-- [ ] native rich text and First Aid blocks;
+- [ ] RichEdit-based native editing and First Aid blocks;
 - [ ] source anchors from Note back to PDF;
 - [ ] exact Reader position preservation across pane changes.
+
+See [m4.1-data-foundation.md](m4.1-data-foundation.md).
 
 ## M5 — Sync and distribution
 

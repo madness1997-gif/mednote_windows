@@ -17,7 +17,7 @@ The reusable assets from the web application are therefore conceptual and contra
 | `pdf-page-virtualizer.ts` | `PageVirtualizer.cs` |
 | `pdf-canvas-budget.ts` | `BitmapBudget.cs` |
 | continuous scroll anchor logic | `ReaderPosition` plus `MainWindow` restoration |
-| IndexedDB runtime state | atomic JSON state in LocalAppData |
+| IndexedDB runtime state | atomic JSON metadata plus content-addressed RTF blobs |
 | PDF.js/PDFium loaders | `IPdfEngine` adapter boundary |
 
 No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is referenced by the native solution.
@@ -28,6 +28,8 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 
 - Has no WinUI or Windows SDK dependency.
 - Owns persisted contracts and invariants.
+- Owns native RTF Sheet content; web v6 Note content exists only in a
+  compatibility namespace and converter contract.
 - Owns deterministic document identity.
 - Owns pure navigation, virtualization, bitmap-budget, text-cache, and search algorithms.
 - Owns web-compatible annotation records, edit history and coordinate mapping.
@@ -52,6 +54,15 @@ No React, TypeScript, CSS, Vite, Electron, IndexedDB, or browser global is refer
 - Persists state atomically under `%LOCALAPPDATA%\MedNote Reader`.
 - Draws annotation overlays only for realized pages and asks PDFium to flatten
   them into independent exported copies.
+
+### MedNote.Infrastructure
+
+- Implements the native v1 repository without WinUI or native PDF dependencies.
+- Keeps hierarchy/document metadata in one atomically replaced manifest.
+- Keeps each Sheet body in an immutable, content-addressed UTF-8 RTF blob so
+  metadata-only startup and navigation never hydrate unrelated Sheets.
+- Keeps web v6 parsing/conversion outside the repository and switches the live
+  manifest only after a complete native snapshot reloads successfully.
 
 ## Renderer strategy
 

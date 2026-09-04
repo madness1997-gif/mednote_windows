@@ -12,7 +12,7 @@ public static class JsonDefaults
         WriteIndented = writeIndented,
         Converters =
         {
-            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false),
         },
     };
 }

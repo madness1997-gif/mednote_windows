@@ -40,7 +40,11 @@ The first vertical slice already contains:
   continuous/single layout, DPI and Reader rotation changes;
 - high-resolution PDFium crop results ready for the future Note pane;
 - atomic PDFium export that flattens web-compatible annotations into page
-  content without rasterizing the source document.
+  content without rasterizing the source document;
+- shared Note hierarchy/Document-link contracts with native RTF Sheet content;
+- lazy, SHA-256-addressed RTF storage behind an atomic manifest;
+- isolated web-v6 backup validation and a web→RTF conversion boundary that
+  finishes before native staged replacement begins.
 
 The M3 Reader now implements renderer-independent PDF outline destinations,
 text extraction rectangles, cancellable search, and a bounded 32 MB LRU text
@@ -51,14 +55,18 @@ PDFium handles never cross the adapter boundary.
 
 ```text
 MedNote.Windows.App
-  WinUI views, native PDF adapter, local JSON persistence
+  WinUI views and native PDF adapter
+            │
+            ▼
+MedNote.Infrastructure
+  atomic native manifest and lazy RTF Sheet blobs
             │
             ▼
 MedNote.Core
-  web-compatible contracts, navigation, anchors, virtualization, memory budget
+  shared metadata, native RTF, web adapters, navigation and memory contracts
 ```
 
-`MedNote.Core` has no Windows UI dependency. PDFium stays behind
+`MedNote.Core` and `MedNote.Infrastructure` have no Windows UI dependency. PDFium stays behind
 `IPdfEngine`/`IPdfDocumentSession`, so navigation, persistence, and view-model
 contracts do not depend on native handle types.
 
@@ -96,6 +104,8 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 
 ## Non-goals for this milestone
 
-Note, Google Drive sync, and an installer remain outside M3. Reader annotation
-editing, crop handoff and flattened export now run through renderer-independent
-contracts.
+The Note UI, concrete web→RTF conversion, Google Drive sync, and an installer
+remain outside M4.1. Reader
+annotation editing, crop handoff and flattened export run through
+renderer-independent contracts; the native Note repository is present but will not
+replace Reader v1 persistence until the M4.2 workspace shell is ready.
