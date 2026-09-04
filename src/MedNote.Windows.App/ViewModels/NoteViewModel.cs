@@ -297,6 +297,23 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
     internal void ReportSourceOpened(NoteSourceAnchorItem source) =>
         StatusText = $"Đã mở {source.DocumentName} · trang {source.Page}";
 
+    public async Task ReloadFromRepositoryAsync(CancellationToken cancellationToken = default)
+    {
+        IsBusy = true;
+        try
+        {
+            var metadata = await _repository.LoadRuntimeMetadataAsync(cancellationToken)
+                ?? throw new InvalidDataException("Note Library native chưa được khởi tạo.");
+            Preferences = metadata.Preferences;
+            await ReloadAsync(cancellationToken);
+            StatusText = "Đã nạp bản lưu Google Drive";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task ReloadAsync(CancellationToken cancellationToken)
     {
         await ReloadStructureAsync(cancellationToken);

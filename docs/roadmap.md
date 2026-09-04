@@ -71,10 +71,10 @@ See [m4.1-data-foundation.md](m4.1-data-foundation.md) and
 
 ## M5 — Sync and distribution
 
-- [ ] Desktop OAuth with PKCE/loopback and `drive.appdata`;
-- [ ] conflict-safe v2 manifest sync;
+- [x] Desktop OAuth with PKCE/loopback and `drive.appdata`;
+- [x] conflict-safe v2 manifest sync;
 - [x] Windows installer and safe uninstall that preserves user data;
-- [ ] shutdown lifecycle;
+- [x] bounded shutdown lifecycle with local flush and recovery journal;
 - [ ] signed release channel, updater, crash diagnostics;
 - [ ] measure working set/startup against the Electron baseline.
 

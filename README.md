@@ -59,6 +59,12 @@ The first vertical slice already contains:
 - blank native tables plus table column-ratio, First Aid/crop image-width, and
   row-height presets;
 - a concrete one-way web-v6 readable-text converter that emits native RTF.
+- Google Desktop OAuth through the system browser with PKCE, a loopback callback,
+  the narrow `drive.appdata` scope, and refresh-token storage in Windows Credential Manager;
+- native v2 Drive manifests with canonical SHA-256 verification, per-Sheet hashes,
+  ETag/`If-Match` updates, staged restore, and explicit two-sided conflict handling;
+- a three-second shutdown budget that cancels network work immediately, flushes
+  local Note/Reader state, and leaves a recovery journal after an interrupted close.
 
 The M3 Reader now implements renderer-independent PDF outline destinations,
 text extraction rectangles, cancellable search, and a bounded 32 MB LRU text
@@ -85,6 +91,7 @@ MedNote.Core
 contracts do not depend on native handle types.
 
 Read [architecture.md](docs/architecture.md),
+[m5-sync-shutdown.md](docs/m5-sync-shutdown.md),
 [m4.2-native-workspace.md](docs/m4.2-native-workspace.md),
 [m4.3-note-integration.md](docs/m4.3-note-integration.md),
 [web-compatibility.md](docs/web-compatibility.md), and
@@ -131,10 +138,9 @@ The rolling [`windows-preview`](https://github.com/madness1997-gif/mednote_windo
 release contains the installer, the portable ZIP, and SHA-256 checksums. Preview
 installers are not yet Authenticode-signed.
 
-## Non-goals for this milestone
+## Remaining M5 work
 
-M4.3 does not implement reverse RTF→web conversion, Google Drive sync, an
-updater, Authenticode signing, crash diagnostics, or a full recovery subsystem.
-Those remain M5 work. Queued PDF crop/source work is drained before native
-resources are disposed. Existing RTF tables use insertion-time sizing presets
-because Windows App SDK RichEdit has no supported live table-resize object model.
+Reverse RTF→web conversion, an updater, Authenticode signing, richer crash
+diagnostics, and the Electron/native performance comparison remain open. Existing
+RTF tables use insertion-time sizing presets because Windows App SDK RichEdit has
+no supported live table-resize object model.

@@ -14,10 +14,19 @@ namespace MedNote.Windows.App;
 
 public sealed partial class MainWindow : Window
 {
+    private static readonly TimeSpan ShutdownDeadline = TimeSpan.FromSeconds(3);
+    private readonly string _dataRoot;
     private readonly FileNoteRepository _noteRepository;
     private readonly JsonReaderLibraryStore _legacyReaderStore;
     private readonly ReaderLibraryCutoverStore _readerStore;
     private readonly ReaderViewportController _viewport;
+    private readonly AppWindow _appWindow;
+    private readonly FileShutdownJournal _shutdownJournal;
+    private readonly ShutdownCoordinator _shutdownCoordinator;
+    private readonly bool _hadInterruptedShutdown;
+    private readonly GoogleDriveSession _driveSession;
+    private readonly FileDriveSyncStateStore _driveStateStore;
+    private readonly DriveSyncCoordinator _driveSync;
     private readonly string? _startupDocumentPath;
     private ReaderWindowStateController? _state;
     private ReaderSidebarController? _sidebar;
@@ -29,14 +38,26 @@ public sealed partial class MainWindow : Window
     private bool _initialized;
     private bool _changingWorkspace;
     private bool _closing;
+    private bool _closeCommitted;
+    private Task? _shutdownTask;
 
     public MainWindow(string? startupDocumentPath = null)
     {
         _startupDocumentPath = startupDocumentPath;
-        _noteRepository = new FileNoteRepository(Path.Combine(
+        _dataRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "MedNote Reader",
-            "native-library"));
+            "MedNote Reader");
+        _noteRepository = new FileNoteRepository(Path.Combine(_dataRoot, "native-library"));
+        _shutdownJournal = new FileShutdownJournal(Path.Combine(_dataRoot, "shutdown-recovery.json"));
+        _shutdownCoordinator = new ShutdownCoordinator(_shutdownJournal);
+        _hadInterruptedShutdown = _shutdownJournal.HasInterruptedShutdown;
+        _driveSession = new GoogleDriveSession();
+        _driveStateStore = new FileDriveSyncStateStore(Path.Combine(_dataRoot, "drive-sync-state.json"));
+        _driveSync = new DriveSyncCoordinator(
+            _noteRepository,
+            _driveSession.CreateDriveClient(),
+            _driveStateStore,
+            new FileDriveConflictArchive(Path.Combine(_dataRoot, "sync-conflicts")));
         _legacyReaderStore = new JsonReaderLibraryStore();
         _readerStore = new ReaderLibraryCutoverStore(
             _legacyReaderStore,
@@ -116,6 +137,8 @@ public sealed partial class MainWindow : Window
             ReaderWorkspaceButton,
             NoteWorkspaceButton);
         _workspace.LayoutChanged += OnWorkspaceLayoutChanged;
+        _appWindow = GetAppWindow();
+        _appWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
         ResizeWindow();
     }
@@ -134,6 +157,7 @@ public sealed partial class MainWindow : Window
         }
 
         _initialized = true;
+        InitializeDriveStatus();
         _viewport.Initialize();
         try
         {
@@ -153,6 +177,14 @@ public sealed partial class MainWindow : Window
         var hasStartupDocument = !string.IsNullOrWhiteSpace(_startupDocumentPath)
             && File.Exists(_startupDocumentPath);
         await ViewModel.InitializeAsync(reopenActiveDocument: !hasStartupDocument);
+        if (_hadInterruptedShutdown)
+        {
+            await _shutdownJournal.CompleteAsync();
+            await ShowErrorAsync(
+                "Đã kiểm tra dữ liệu cục bộ",
+                "Lần đóng trước bị gián đoạn. MedNote đã mở lại snapshot nguyên vẹn gần nhất.");
+        }
+
         if (hasStartupDocument)
         {
             await OpenFileAsync(_startupDocumentPath!);
@@ -274,22 +306,49 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OnWindowClosed(object sender, WindowEventArgs args)
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_closeCommitted)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        _shutdownTask ??= ShutdownAndCloseAsync();
+    }
+
+    private async Task ShutdownAndCloseAsync()
+    {
+        try
+        {
+            _ = await _shutdownCoordinator.RunAsync(
+                StopNetworkForShutdown,
+                FlushLocalForShutdownAsync,
+                DisposeLocalForShutdownAsync,
+                ShutdownDeadline);
+        }
+        finally
+        {
+            _closeCommitted = true;
+            Close();
+        }
+    }
+
+    private async Task FlushLocalForShutdownAsync(CancellationToken cancellationToken)
     {
         var pendingNoteIntegration = BeginNoteIntegrationShutdown();
+        _viewport.CaptureCurrentPosition();
+        await pendingNoteIntegration.WaitAsync(cancellationToken);
+        await NoteWorkspacePane.FlushAsync(cancellationToken);
+        await _workspacePreferenceSave.WaitAsync(cancellationToken);
+        await ViewModel.PersistNowAsync(cancellationToken);
+    }
+
+    private async Task DisposeLocalForShutdownAsync(CancellationToken cancellationToken)
+    {
         ViewModel.CropCreated -= OnReaderCropCreated;
         NoteWorkspacePane.SourceRequested -= OnNoteSourceRequested;
         NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
-        try
-        {
-            await pendingNoteIntegration;
-        }
-        catch
-        {
-            // Integration handlers report their own failures while the window is
-            // alive. During shutdown the priority is to drain before disposal.
-        }
-
         _search?.Dispose();
         _annotations?.Dispose();
         _state?.Dispose();
@@ -299,16 +358,21 @@ public sealed partial class MainWindow : Window
             _workspace.Dispose();
         }
 
-        _viewport.CaptureCurrentPosition();
         _viewport.Dispose();
         _sourceFocusCancellation?.Cancel();
         _sourceFocusCancellation?.Dispose();
         _sourceFocusPage?.SetSourceFocus(null);
-        await NoteWorkspacePane.DisposeAsync();
-        await _workspacePreferenceSave;
-        await ViewModel.DisposeAsync();
+        await NoteWorkspacePane.DisposeAfterFlushAsync(cancellationToken);
+        await ViewModel.DisposeAfterFlushAsync(cancellationToken).WaitAsync(cancellationToken);
         _legacyReaderStore.Dispose();
         await _noteRepository.DisposeAsync();
+        _driveSession.Dispose();
+    }
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        _appWindow.Closing -= OnAppWindowClosing;
+        StopNetworkForShutdown();
     }
 
     private async Task ShowErrorAsync(string title, string message)
@@ -325,8 +389,13 @@ public sealed partial class MainWindow : Window
 
     private void ResizeWindow()
     {
+        _appWindow.Resize(new SizeInt32(1_420, 900));
+    }
+
+    private AppWindow GetAppWindow()
+    {
         var windowHandle = WindowNative.GetWindowHandle(this);
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
-        AppWindow.GetFromWindowId(windowId).Resize(new SizeInt32(1_420, 900));
+        return AppWindow.GetFromWindowId(windowId);
     }
 }

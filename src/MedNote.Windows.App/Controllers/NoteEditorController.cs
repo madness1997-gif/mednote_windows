@@ -208,6 +208,24 @@ public sealed class NoteEditorController : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Detaches UI handlers after the composition root has already flushed the
+    /// editor under its bounded shutdown deadline.
+    /// </summary>
+    public void DetachAfterFlush()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _saveTimer.Stop();
+        _disposed = true;
+        _saveTimer.Tick -= OnSaveTimerTick;
+        _editor.TextChanged -= OnTextChanged;
+        _saveGate.Dispose();
+    }
+
     private void OnTextChanged(object sender, RoutedEventArgs e)
     {
         if (!_loading && _viewModel.IsReady)

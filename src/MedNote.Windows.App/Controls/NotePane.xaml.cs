@@ -138,6 +138,36 @@ public sealed partial class NotePane : UserControl
         }
     }
 
+    public async Task DisposeAfterFlushAsync(CancellationToken cancellationToken = default)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        await _navigationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_viewModel is not null)
+            {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            }
+
+            if (_editor is not null)
+            {
+                _editor.SaveFailed -= OnEditorSaveFailed;
+                _editor.DetachAfterFlush();
+                _editor = null;
+            }
+        }
+        finally
+        {
+            _navigationGate.Release();
+            _navigationGate.Dispose();
+        }
+    }
+
     private async void OnNotebookSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_applyingNavigation && NotebookBox.SelectedItem is NotebookRecord notebook)

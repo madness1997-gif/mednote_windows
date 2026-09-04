@@ -77,9 +77,53 @@ public sealed partial class ReaderViewModel
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public async Task ReloadFromRepositoryAsync(CancellationToken cancellationToken = default)
     {
-        await _documentGate.WaitAsync();
+        await _documentGate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await _persistence.LoadAsync(cancellationToken);
+            if (_documentId is null || _persistence.FindDocument(_documentId) is not { } restored || !HasDocument)
+            {
+                return;
+            }
+
+            _reader = restored.Reader.Normalize(PageCount);
+            _position = restored.Position.Normalize(PageCount);
+            _annotationSession.Reset(_reader.Annotations);
+            CurrentPage = _reader.Page;
+            Zoom = _reader.Zoom;
+            Rotation = _reader.Rotation;
+            FitMode = _reader.FitMode;
+            ViewMode = _reader.ViewMode;
+            Bookmarks = _reader.Bookmarks.ToArray();
+            OnPropertyChanged(nameof(Annotations));
+            OnPropertyChanged(nameof(AnnotationCount));
+            OnPropertyChanged(nameof(CanUndoAnnotations));
+            OnPropertyChanged(nameof(CanRedoAnnotations));
+            RefreshAllPageLayouts(Rotation);
+            foreach (var page in Pages)
+            {
+                page.NotifyAnnotationsChanged();
+            }
+
+            StatusText = "Đã nạp trạng thái Reader từ Google Drive";
+        }
+        finally
+        {
+            _documentGate.Release();
+        }
+    }
+
+    public ValueTask DisposeAsync() => new(DisposeCoreAsync(flushCurrentState: true, CancellationToken.None));
+
+    public Task DisposeAfterFlushAsync(CancellationToken cancellationToken = default) =>
+        DisposeCoreAsync(flushCurrentState: false, cancellationToken);
+
+    private async Task DisposeCoreAsync(bool flushCurrentState, CancellationToken cancellationToken)
+    {
+        await _documentGate.WaitAsync(cancellationToken);
         try
         {
             if (_disposed)
@@ -88,13 +132,13 @@ public sealed partial class ReaderViewModel
             }
 
             _disposed = true;
-            await _search.CancelAsync(clearResults: true);
+            await _search.CancelAsync(clearResults: true, cancellationToken);
             ClearTextSelection();
             try
             {
-                if (HasDocument)
+                if (flushCurrentState && HasDocument)
                 {
-                    await PersistNowAsync();
+                    await PersistNowAsync(cancellationToken);
                 }
             }
             catch

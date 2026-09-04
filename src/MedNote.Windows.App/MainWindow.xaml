@@ -149,20 +149,27 @@
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <Button
+                        x:Name="DriveButton"
                         Height="34"
                         Padding="10,0"
                         Background="White"
                         BorderBrush="#FFCBD9DC"
                         BorderThickness="1"
+                        Click="OnDriveClicked"
                         CornerRadius="8"
                         FontSize="11"
                         FontWeight="SemiBold"
                         Foreground="{ThemeResource MutedTextBrush}"
-                        IsEnabled="False"
-                        ToolTipService.ToolTip="Đồng bộ Drive sẽ được bổ sung sau">
+                        ToolTipService.ToolTip="Đồng bộ thư viện bằng Google Drive appDataFolder">
+                        <Button.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem Click="OnDriveChangeClientClicked" Text="Đổi OAuth client…" />
+                                <MenuFlyoutItem Click="OnDriveDisconnectClicked" Text="Ngắt kết nối" />
+                            </MenuFlyout>
+                        </Button.ContextFlyout>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon FontSize="15" Glyph="&#xE753;" />
-                            <TextBlock VerticalAlignment="Center" Text="Kết nối Drive" />
+                            <TextBlock x:Name="DriveButtonLabel" VerticalAlignment="Center" Text="Kết nối Drive" />
                         </StackPanel>
                     </Button>
                     <Button
