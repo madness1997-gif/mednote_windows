@@ -77,10 +77,11 @@ public sealed class DriveSyncCoordinatorTests
         });
 
         var conflict = await sync.SyncAsync();
-        var resolved = await sync.SyncAsync(DriveConflictResolution.UseLocal);
-
         Assert.AreEqual(DriveSyncOutcome.Conflict, conflict.Outcome);
         Assert.AreEqual(1, archive.Count);
+
+        var resolved = await sync.SyncAsync(DriveConflictResolution.UseLocal);
+
         Assert.AreEqual(DriveSyncOutcome.UploadedLocal, resolved.Outcome);
         Assert.AreEqual(2, archive.Count);
     }
