@@ -4,7 +4,7 @@ namespace MedNote.Core;
 
 public sealed record LibraryValidationIssue(string Code, string Entity, string Id, string Message);
 
-public sealed class NoteLibraryValidationException : InvalidDataException
+public sealed class NoteLibraryValidationException : IOException
 {
     public NoteLibraryValidationException(IReadOnlyList<LibraryValidationIssue> issues)
         : base(string.Join("; ", issues.Select(issue => issue.Message)))
