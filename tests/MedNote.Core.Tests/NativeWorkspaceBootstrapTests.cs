@@ -123,6 +123,60 @@ public sealed class NativeWorkspaceBootstrapTests
     }
 
     [TestMethod]
+    public async Task NativeReaderStore_AtomicMergePreservesNoteLinksAndDocumentExtensionFields()
+    {
+        using var directory = new TemporaryRepositoryDirectory();
+        await using var repository = new FileNoteRepository(directory.Path);
+        var legacy = new MemoryReaderStore(new ReaderLibrary().Upsert(ReaderDocument("doc-1")));
+        var bootstrap = await new NativeLibraryBootstrapper(repository).InitializeAsync(legacy);
+        var sheetId = bootstrap.Notes.Sheets.Single().Id;
+        var initialGraph = await repository.LoadDocumentGraphAsync();
+        Assert.IsNotNull(initialGraph);
+        var documentExtension = JsonSerializer.SerializeToElement("kept-by-note");
+        var anchored = PdfContentLinks.Create(
+            "doc-1",
+            sheetId,
+            7,
+            new PdfAnnotationRect(10, 20, 30, 40),
+            createdAt: 99,
+            linkId: "crop-link",
+            relationId: "crop-relation");
+        await repository.ReplaceDocumentGraphAsync(initialGraph with
+        {
+            Documents = initialGraph.Documents.Select(document => document.Id == "doc-1"
+                ? document with
+                {
+                    ExtensionData = new Dictionary<string, JsonElement>(document.ExtensionData, StringComparer.Ordinal)
+                    {
+                        ["futureDocumentField"] = documentExtension,
+                    },
+                }
+                : document).ToList(),
+            Links = [.. initialGraph.Links, anchored.Link],
+            LinkRelations = [.. initialGraph.LinkRelations, anchored.Relation],
+        });
+        var store = new NativeReaderLibraryStore(repository);
+        var loaded = await store.LoadAsync();
+        var updated = loaded.Upsert(loaded.Documents.Single() with
+        {
+            Reader = loaded.Documents.Single().Reader with { Page = 12 },
+        });
+
+        await store.SaveAsync(updated);
+        var graph = await repository.LoadDocumentGraphAsync();
+
+        Assert.IsNotNull(graph);
+        Assert.AreEqual(12, graph.Documents.Single(document => document.Id == "doc-1")
+            .Payload.GetProperty("reader").GetProperty("page").GetInt32());
+        Assert.AreEqual(
+            "kept-by-note",
+            graph.Documents.Single(document => document.Id == "doc-1")
+                .ExtensionData["futureDocumentField"].GetString());
+        Assert.IsTrue(graph.Links.Any(link => link.Id == "crop-link"));
+        Assert.IsTrue(graph.LinkRelations.Any(relation => relation.Id == "crop-relation"));
+    }
+
+    [TestMethod]
     public async Task NativeReaderStore_LoadDoesNotHydrateNoteBlobs()
     {
         using var directory = new TemporaryRepositoryDirectory();

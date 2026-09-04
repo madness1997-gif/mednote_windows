@@ -112,11 +112,11 @@ public sealed class NoteEditorController : IAsyncDisposable
 
     public void ToggleNumberedList() => ToggleList(MarkerType.Arabic);
 
-    public void InsertFirstAid(double firstColumnShare, double rowHeightPoints)
+    public void InsertFirstAid(double imageColumnShare, double rowHeightPoints)
     {
         _editor.Document.Selection.SetText(
             TextSetOptions.FormatRtf,
-            NativeNoteTemplates.FirstAidRtfWithLayout(firstColumnShare, rowHeightPoints));
+            NativeNoteTemplates.FirstAidRtfWithLayout(imageColumnShare, rowHeightPoints));
         QueueSave();
         FocusEditor();
     }
@@ -156,7 +156,7 @@ public sealed class NoteEditorController : IAsyncDisposable
         _loading = true;
         try
         {
-            var sourceLabel = $"Nguồn: {documentName} · trang {crop.Page}";
+            var sourceLabel = $"{documentName} · trang {crop.Page}";
             var fragment = NativeNoteTemplates.PdfCropBlockRtf(
                 crop.ImageBytes,
                 crop.PixelWidth,

@@ -15,6 +15,7 @@ public sealed partial class NotePane : UserControl
     private NoteViewModel? _viewModel;
     private NoteEditorController? _editor;
     private bool _applyingNavigation;
+    private bool _disposed;
 
     public NotePane()
     {
@@ -80,6 +81,7 @@ public sealed partial class NotePane : UserControl
         Func<CancellationToken, ValueTask> prepareSource,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_viewModel is null || _editor is null)
         {
             throw new InvalidOperationException("NotePane chưa sẵn sàng.");
@@ -89,12 +91,13 @@ public sealed partial class NotePane : UserControl
         await _navigationGate.WaitAsync(cancellationToken);
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             await prepareSource(cancellationToken);
             await _editor.InsertPdfCropAsync(
                 crop,
                 documentId,
                 documentName,
-                SelectedColumnShare(),
+                SelectedImageShare(),
                 SelectedRowHeight(),
                 cancellationToken);
         }
@@ -106,19 +109,32 @@ public sealed partial class NotePane : UserControl
 
     public async ValueTask DisposeAsync()
     {
-        if (_viewModel is not null)
+        if (_disposed)
         {
-            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            return;
         }
 
-        if (_editor is not null)
+        _disposed = true;
+        await _navigationGate.WaitAsync();
+        try
         {
-            _editor.SaveFailed -= OnEditorSaveFailed;
-            await _editor.DisposeAsync();
-            _editor = null;
-        }
+            if (_viewModel is not null)
+            {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            }
 
-        _navigationGate.Dispose();
+            if (_editor is not null)
+            {
+                _editor.SaveFailed -= OnEditorSaveFailed;
+                await _editor.DisposeAsync();
+                _editor = null;
+            }
+        }
+        finally
+        {
+            _navigationGate.Release();
+            _navigationGate.Dispose();
+        }
     }
 
     private async void OnNotebookSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -191,7 +207,7 @@ public sealed partial class NotePane : UserControl
     private void OnNumberedClicked(object sender, RoutedEventArgs e) => _editor?.ToggleNumberedList();
 
     private void OnFirstAidClicked(object sender, RoutedEventArgs e) =>
-        _editor?.InsertFirstAid(SelectedColumnShare(), SelectedRowHeight());
+        _editor?.InsertFirstAid(SelectedImageShare(), SelectedRowHeight());
 
     private void OnInsertTableClicked(object sender, RoutedEventArgs e)
     {
@@ -227,7 +243,7 @@ public sealed partial class NotePane : UserControl
 
     private async Task NavigateAsync(Func<Task> navigation)
     {
-        if (_viewModel is null || _editor is null)
+        if (_disposed || _viewModel is null || _editor is null)
         {
             return;
         }
@@ -235,6 +251,11 @@ public sealed partial class NotePane : UserControl
         await _navigationGate.WaitAsync();
         try
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _editor.CaptureSelection();
             await _editor.SaveNowAsync();
             await navigation();
@@ -287,6 +308,8 @@ public sealed partial class NotePane : UserControl
     private void OnEditorSaveFailed(Exception exception) => OperationFailed?.Invoke(exception);
 
     private double SelectedColumnShare() => ReadSelectedNumber(LayoutRatioBox, 0.5d);
+
+    private double SelectedImageShare() => ReadSelectedNumber(ImageWidthBox, 0.25d);
 
     private double SelectedRowHeight() => ReadSelectedNumber(RowHeightBox, 36d);
 

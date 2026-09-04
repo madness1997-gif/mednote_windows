@@ -207,11 +207,21 @@
                             x:Name="LayoutRatioBox"
                             Width="104"
                             Height="32"
-                            SelectedIndex="0"
-                            ToolTipService.ToolTip="Tỷ lệ cột cho khối mới">
+                            SelectedIndex="1"
+                            ToolTipService.ToolTip="Tỷ lệ cột cho bảng mới">
                             <ComboBoxItem Content="Cột 30 / 70" Tag="0.3" />
                             <ComboBoxItem Content="Cột 50 / 50" Tag="0.5" />
                             <ComboBoxItem Content="Cột 70 / 30" Tag="0.7" />
+                        </ComboBox>
+                        <ComboBox
+                            x:Name="ImageWidthBox"
+                            Width="92"
+                            Height="32"
+                            SelectedIndex="0"
+                            ToolTipService.ToolTip="Độ rộng hình bên phải cho First Aid và crop mới">
+                            <ComboBoxItem Content="Hình 25%" Tag="0.25" />
+                            <ComboBoxItem Content="Hình 35%" Tag="0.35" />
+                            <ComboBoxItem Content="Hình 45%" Tag="0.45" />
                         </ComboBox>
                         <ComboBox
                             x:Name="RowHeightBox"

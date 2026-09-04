@@ -4,14 +4,15 @@ namespace MedNote.Core;
 
 public static class NativeNoteTemplates
 {
+    private const double FirstAidLabelShare = 0.22d;
     private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
 
     public static RtfSheetContent FirstAid() => new() { Rtf = FirstAidRtf };
 
-    public static string FirstAidRtf { get; } = BuildFirstAidRtf(0.22d, 30d);
+    public static string FirstAidRtf { get; } = BuildFirstAidRtf(0.25d, 36d);
 
-    public static string FirstAidRtfWithLayout(double firstColumnShare, double rowHeightPoints) =>
-        BuildFirstAidRtf(firstColumnShare, rowHeightPoints);
+    public static string FirstAidRtfWithLayout(double imageColumnShare, double rowHeightPoints) =>
+        BuildFirstAidRtf(imageColumnShare, rowHeightPoints);
 
     public static string BlankTableRtf(
         int rows,
@@ -25,7 +26,7 @@ public static class NativeNoteTemplates
         var builder = StartRtf();
         for (var row = 0; row < rows; row++)
         {
-            builder.Append(@"\trowd\trgaph90\trleft0\trrh")
+            builder.Append(@"\trowd\trgaph90\trleft0\trftsWidth2\trwWidth5000\trrh")
                 .Append(ToTwips(rowHeightPoints));
             foreach (var edge in edges)
             {
@@ -61,9 +62,10 @@ public static class NativeNoteTemplates
             throw new ArgumentException("Crop phải là ảnh PNG có kích thước hợp lệ.", nameof(pngBytes));
         }
 
-        var share = NormalizeShare(imageColumnShare);
-        var firstEdge = checked((int)Math.Round(10_000d * share));
-        var availableWidth = Math.Max(720, firstEdge - 360);
+        var imageShare = NormalizeImageShare(imageColumnShare);
+        var labelEdge = checked((int)Math.Round(10_000d * FirstAidLabelShare));
+        var imageEdge = checked((int)Math.Round(10_000d * (1d - imageShare)));
+        var availableWidth = Math.Max(720, 10_000 - imageEdge - 360);
         var goalWidth = availableWidth;
         var goalHeight = checked((int)Math.Round(goalWidth * (double)pixelHeight / pixelWidth));
         var maximumHeight = Math.Max(ToTwips(rowHeightPoints), 5_400);
@@ -74,11 +76,15 @@ public static class NativeNoteTemplates
         }
 
         var builder = StartRtf();
-        builder.Append(@"\trowd\trgaph90\trleft0\trrh")
+        builder.Append(@"\trowd\trgaph90\trleft0\trftsWidth2\trwWidth5000\trrh")
             .Append(Math.Max(ToTwips(rowHeightPoints), goalHeight + 240));
-        AppendCellDefinition(builder, 0, firstEdge);
+        AppendCellDefinition(builder, 2, labelEdge);
+        AppendCellDefinition(builder, 0, imageEdge);
         AppendCellDefinition(builder, 0, 10_000);
-        builder.Append(@"\pard\intbl\qc{\pict\pngblip\picw")
+        builder.Append(@"\pard\intbl\ql\f0\fs24\cf4\b NGU")
+            .Append(@"\u7890?N PDF\b0\cell\pard\intbl\ql\f0\fs24\cf4\b0 ");
+        AppendEscaped(builder, sourceLabel);
+        builder.Append(@"\cell\pard\intbl\qc{\pict\pngblip\picw")
             .Append(pixelWidth)
             .Append(@"\pich")
             .Append(pixelHeight)
@@ -88,39 +94,24 @@ public static class NativeNoteTemplates
             .Append(goalHeight)
             .Append(' ');
         AppendHex(builder, pngBytes);
-        builder.Append(@"}\cell\pard\intbl\ql\f0\fs24\cf4\b0 \cell\row ");
-        builder.Append(@"\pard\f0\fs24\cf1\sa120 ");
-        AppendEscaped(builder, sourceLabel);
-        builder.Append(@"\par ");
+        builder.Append(@"}\cell\row ");
         return FinishRtf(builder);
     }
 
-    private static string BuildFirstAidRtf(double firstColumnShare, double rowHeightPoints)
+    private static string BuildFirstAidRtf(double imageColumnShare, double rowHeightPoints)
     {
         var builder = StartRtf();
-        var firstEdge = checked((int)Math.Round(10_000d * NormalizeShare(firstColumnShare)));
-        AppendTableRow(builder, "FIRST AID", 3, firstEdge, rowHeightPoints);
-        AppendTableRow(builder, "CHẨN ĐOÁN", 2, firstEdge, rowHeightPoints);
-        AppendTableRow(builder, "CƠ CHẾ", 2, firstEdge, rowHeightPoints);
-        AppendTableRow(builder, "XỬ TRÍ", 2, firstEdge, rowHeightPoints);
-        AppendTableRow(builder, "CẢNH BÁO", 2, firstEdge, rowHeightPoints);
-        return FinishRtf(builder);
-    }
-
-    private static void AppendTableRow(
-        StringBuilder builder,
-        string heading,
-        int backgroundColor,
-        int firstEdge,
-        double rowHeightPoints)
-    {
-        builder.Append(@"\trowd\trgaph90\trleft0\trrh")
+        var labelEdge = checked((int)Math.Round(10_000d * FirstAidLabelShare));
+        var imageEdge = checked((int)Math.Round(10_000d * (1d - NormalizeImageShare(imageColumnShare))));
+        builder.Append(@"\trowd\trgaph90\trleft0\trftsWidth2\trwWidth5000\trrh")
             .Append(ToTwips(rowHeightPoints));
-        AppendCellDefinition(builder, backgroundColor, firstEdge);
-        AppendCellDefinition(builder, 0, 10000);
-        builder.Append(@"\pard\intbl\f0\fs24\cf4\b ");
-        AppendEscaped(builder, heading);
-        builder.Append(@"\b0\cell\pard\intbl\f0\fs24\cf0\b0 \cell\row ");
+        AppendCellDefinition(builder, 3, labelEdge);
+        AppendCellDefinition(builder, 0, imageEdge);
+        AppendCellDefinition(builder, 0, 10_000);
+        builder.Append(@"\pard\intbl\f0\fs24\cf4\b FIRST AID\b0\cell")
+            .Append(@"\pard\intbl\f0\fs24\cf0\b0 \cell")
+            .Append(@"\pard\intbl\f0\fs24\cf0\b0 \cell\row ");
+        return FinishRtf(builder);
     }
 
     private static StringBuilder StartRtf() => new(
@@ -150,6 +141,9 @@ public static class NativeNoteTemplates
 
     private static double NormalizeShare(double value) =>
         Math.Clamp(double.IsFinite(value) ? value : 0.5d, 0.2d, 0.8d);
+
+    private static double NormalizeImageShare(double value) =>
+        Math.Clamp(double.IsFinite(value) ? value : 0.25d, 0.2d, 0.45d);
 
     private static int ToTwips(double points) =>
         checked((int)Math.Round(Math.Clamp(double.IsFinite(points) ? points : 30d, 18d, 96d) * 20d));

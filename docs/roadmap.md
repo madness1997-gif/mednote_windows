@@ -62,7 +62,7 @@ See [p2.5-stabilization.md](p2.5-stabilization.md).
 - [x] concrete one-way web-v6 readable-text → RTF conversion;
 - [x] atomic PDF crop/image handoff into the active RTF Sheet;
 - [x] source anchors from Note back to the exact PDF page/region;
-- [x] native blank-table and First Aid layout presets for column ratio and row height;
+- [x] native blank-table column presets plus First Aid/crop image-width and row-height presets;
 - [x] exact Reader position and Note caret preservation across pane changes.
 
 See [m4.1-data-foundation.md](m4.1-data-foundation.md) and

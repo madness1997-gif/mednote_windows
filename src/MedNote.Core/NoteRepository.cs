@@ -87,6 +87,14 @@ public interface INoteRepository : IAsyncDisposable
 
     ValueTask ReplaceDocumentGraphAsync(DocumentGraph graph, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Merges Reader-owned document state into the current graph in one
+    /// repository transaction, preserving concurrent Note links and relations.
+    /// </summary>
+    ValueTask<DocumentGraph> MergeReaderLibraryAsync(
+        ReaderLibrary library,
+        CancellationToken cancellationToken = default);
+
     ValueTask<DocumentGraph> SaveDocumentWorkspaceAsync(SaveDocumentWorkspaceRequest request, CancellationToken cancellationToken = default);
 
     ValueTask<DocumentGraph> DeleteDocumentWorkspaceAsync(string contextId, CancellationToken cancellationToken = default);

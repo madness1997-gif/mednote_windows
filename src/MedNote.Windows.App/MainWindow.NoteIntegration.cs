@@ -5,18 +5,21 @@ namespace MedNote.Windows.App;
 
 public sealed partial class MainWindow
 {
-    private readonly SemaphoreSlim _noteIntegrationGate = new(1, 1);
+    private readonly object _noteIntegrationSync = new();
+    private Task _noteIntegrationTask = Task.CompletedTask;
     private CancellationTokenSource? _sourceFocusCancellation;
     private PdfPageViewModel? _sourceFocusPage;
 
-    private async void OnReaderCropCreated(PdfCropResult crop)
+    private void OnReaderCropCreated(PdfCropResult crop) =>
+        QueueNoteIntegration(() => HandleReaderCropCreatedAsync(crop));
+
+    private async Task HandleReaderCropCreatedAsync(PdfCropResult crop)
     {
         if (_closing)
         {
             return;
         }
 
-        await _noteIntegrationGate.WaitAsync();
         try
         {
             if (_closing)
@@ -49,20 +52,18 @@ public sealed partial class MainWindow
                 await ShowErrorAsync("Không chèn được crop vào Note", exception.Message);
             }
         }
-        finally
-        {
-            _noteIntegrationGate.Release();
-        }
     }
 
-    private async void OnNoteSourceRequested(NoteSourceAnchorItem source)
+    private void OnNoteSourceRequested(NoteSourceAnchorItem source) =>
+        QueueNoteIntegration(() => HandleNoteSourceRequestedAsync(source));
+
+    private async Task HandleNoteSourceRequestedAsync(NoteSourceAnchorItem source)
     {
         if (_closing)
         {
             return;
         }
 
-        await _noteIntegrationGate.WaitAsync();
         try
         {
             if (_closing)
@@ -113,9 +114,42 @@ public sealed partial class MainWindow
                 await ShowErrorAsync("Không mở được nguồn PDF", exception.Message);
             }
         }
-        finally
+    }
+
+    private void QueueNoteIntegration(Func<Task> operation)
+    {
+        lock (_noteIntegrationSync)
         {
-            _noteIntegrationGate.Release();
+            if (_closing)
+            {
+                return;
+            }
+
+            _noteIntegrationTask = ContinueNoteIntegrationAsync(_noteIntegrationTask, operation);
+        }
+    }
+
+    private static async Task ContinueNoteIntegrationAsync(Task previous, Func<Task> operation)
+    {
+        try
+        {
+            await previous;
+        }
+        catch
+        {
+            // Each queued operation handles its own UI error. Keep the queue usable
+            // if an unexpected exception escapes one operation.
+        }
+
+        await operation();
+    }
+
+    private Task BeginNoteIntegrationShutdown()
+    {
+        lock (_noteIntegrationSync)
+        {
+            _closing = true;
+            return _noteIntegrationTask;
         }
     }
 

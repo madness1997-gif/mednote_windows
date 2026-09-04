@@ -14,7 +14,12 @@ public sealed class NoteLibraryValidationTests
         var rtf = NativeNoteTemplates.FirstAidRtf;
 
         Assert.IsTrue(RtfDocument.IsRtf(rtf));
-        StringAssert.Contains(rtf, @"\trowd");
+        Assert.AreEqual(1, Count(rtf, @"\trowd"));
+        Assert.AreEqual(3, Count(rtf, @"\cellx"));
+        StringAssert.Contains(rtf, @"\trftsWidth2\trwWidth5000");
+        StringAssert.Contains(rtf, @"\cellx2200");
+        StringAssert.Contains(rtf, @"\cellx7500");
+        StringAssert.Contains(rtf, @"\cellx10000");
         StringAssert.Contains(rtf, @"\fs24");
         Assert.IsFalse(rtf.Contains(@"\fs28", StringComparison.Ordinal));
         Assert.IsFalse(rtf.Contains("Nội dung", StringComparison.OrdinalIgnoreCase));
@@ -33,10 +38,19 @@ public sealed class NoteLibraryValidationTests
             "Nguồn: Harrison.pdf · trang 12");
 
         Assert.AreEqual(3, Count(table, @"\trowd"));
+        Assert.AreEqual(3, Count(table, @"\trftsWidth2\trwWidth5000"));
         StringAssert.Contains(table, @"\trrh1040");
         StringAssert.Contains(table, @"\cellx3000");
+        Assert.AreEqual(3, Count(crop, @"\cellx"));
+        StringAssert.Contains(crop, @"\trftsWidth2\trwWidth5000");
+        StringAssert.Contains(crop, @"\cellx2200");
+        StringAssert.Contains(crop, @"\cellx7000");
+        StringAssert.Contains(crop, @"\cellx10000");
         StringAssert.Contains(crop, @"\pict\pngblip");
         StringAssert.Contains(crop, "89504e470d0a1a0a");
+        Assert.IsTrue(
+            crop.IndexOf("Harrison.pdf", StringComparison.Ordinal)
+            < crop.IndexOf(@"\pict\pngblip", StringComparison.Ordinal));
         Assert.IsFalse(crop.Contains(@"\fs20", StringComparison.Ordinal));
         Assert.IsFalse(table.Contains("Nội dung", StringComparison.OrdinalIgnoreCase));
         Assert.IsTrue(RtfDocument.IsRtf(crop));

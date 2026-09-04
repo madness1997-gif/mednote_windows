@@ -53,11 +53,11 @@ The first vertical slice already contains:
 - Reader, Note and adjustable split modes with persisted 20–80% sizing and F6
   pane switching that preserves PDF position and Note caret;
 - a lazy active-Sheet RichEdit editor with native RTF autosave, basic text/list
-  formatting and a 12-point First Aid table whose content cells start empty;
+  formatting and a 12-point horizontal First Aid row whose content/image cells start empty;
 - atomic crop/body/source-link commits with editor rollback on failure;
 - active-Sheet PDF source navigation to the exact page and a transient anchored-region focus;
-- blank native tables plus column-ratio and row-height presets for new First Aid,
-  table, and image–notes blocks;
+- blank native tables plus table column-ratio, First Aid/crop image-width, and
+  row-height presets;
 - a concrete one-way web-v6 readable-text converter that emits native RTF.
 
 The M3 Reader now implements renderer-independent PDF outline destinations,
@@ -123,6 +123,7 @@ dotnet publish src/MedNote.Windows.App/MedNote.Windows.App.csproj `
 ## Non-goals for this milestone
 
 M4.3 does not implement reverse RTF→web conversion, Google Drive sync, an
-installer/updater, crash diagnostics, or hardened shutdown coordination. Those
-remain M5 work. Existing RTF tables use insertion-time sizing presets because
-Windows App SDK RichEdit has no supported live table-resize object model.
+installer/updater, crash diagnostics, or a full recovery subsystem. Those remain
+M5 work. Queued PDF crop/source work is drained before native resources are
+disposed. Existing RTF tables use insertion-time sizing presets because Windows
+App SDK RichEdit has no supported live table-resize object model.

@@ -276,7 +276,20 @@ public sealed partial class MainWindow : Window
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
-        _closing = true;
+        var pendingNoteIntegration = BeginNoteIntegrationShutdown();
+        ViewModel.CropCreated -= OnReaderCropCreated;
+        NoteWorkspacePane.SourceRequested -= OnNoteSourceRequested;
+        NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
+        try
+        {
+            await pendingNoteIntegration;
+        }
+        catch
+        {
+            // Integration handlers report their own failures while the window is
+            // alive. During shutdown the priority is to drain before disposal.
+        }
+
         _search?.Dispose();
         _annotations?.Dispose();
         _state?.Dispose();
@@ -291,9 +304,6 @@ public sealed partial class MainWindow : Window
         _sourceFocusCancellation?.Cancel();
         _sourceFocusCancellation?.Dispose();
         _sourceFocusPage?.SetSourceFocus(null);
-        ViewModel.CropCreated -= OnReaderCropCreated;
-        NoteWorkspacePane.SourceRequested -= OnNoteSourceRequested;
-        NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
         await NoteWorkspacePane.DisposeAsync();
         await _workspacePreferenceSave;
         await ViewModel.DisposeAsync();

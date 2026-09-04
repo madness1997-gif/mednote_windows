@@ -269,6 +269,17 @@ public sealed partial class FileNoteRepository : INoteRepository
         await UpdateDocumentsAsync(_ => Clone(graph), cancellationToken);
     }
 
+    public async ValueTask<DocumentGraph> MergeReaderLibraryAsync(
+        ReaderLibrary library,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(library);
+        var snapshot = Clone(library);
+        return await UpdateDocumentsAndReturnAsync(
+            graph => ReaderDocumentGraphBridge.Merge(graph, snapshot),
+            cancellationToken);
+    }
+
     public async ValueTask<DocumentGraph> SaveDocumentWorkspaceAsync(
         SaveDocumentWorkspaceRequest request,
         CancellationToken cancellationToken = default)
