@@ -33,9 +33,9 @@ public sealed partial class MainWindow
         _state?.UpdatePageControls();
     }
 
-    private void OnZoomOutClicked(object sender, RoutedEventArgs e) => ViewModel.StepZoom(-1);
+    private async void OnZoomOutClicked(object sender, RoutedEventArgs e) => await _viewport.StepZoomAsync(-1);
 
-    private void OnZoomInClicked(object sender, RoutedEventArgs e) => ViewModel.StepZoom(1);
+    private async void OnZoomInClicked(object sender, RoutedEventArgs e) => await _viewport.StepZoomAsync(1);
 
     private bool _changingReaderDisplay;
 
@@ -276,12 +276,12 @@ public sealed partial class MainWindow
         }
         else if (controlDown && e.Key == VirtualKey.Add)
         {
-            ViewModel.StepZoom(1);
+            await _viewport.StepZoomAsync(1);
             e.Handled = true;
         }
         else if (controlDown && e.Key == VirtualKey.Subtract)
         {
-            ViewModel.StepZoom(-1);
+            await _viewport.StepZoomAsync(-1);
             e.Handled = true;
         }
 

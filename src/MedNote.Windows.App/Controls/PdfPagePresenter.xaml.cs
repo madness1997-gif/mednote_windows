@@ -31,7 +31,9 @@ public sealed partial class PdfPagePresenter : UserControl
     private bool _selectionMarkupCommitted;
     private ReaderSelectionFlyout? _selectionFlyout;
     private ScrollViewer? _smartScroll;
+    private ScrollViewer? _smartCandidate;
     private global::Windows.Foundation.Point _smartStart;
+    private global::Windows.Foundation.Point _smartPendingPoint;
     private double _smartHorizontal;
     private double _smartVertical;
     private PdfPagePoint _selectionStartPoint;
@@ -170,6 +172,15 @@ public sealed partial class PdfPagePresenter : UserControl
         _pendingSelectionPoint = new PdfPagePoint(point.Position.X, point.Position.Y);
         _selectionStartPoint = _pendingSelectionPoint;
         _smartStart = e.GetCurrentPoint(null).Position;
+        _smartPendingPoint = _smartStart;
+        if (page.ActiveTool == PdfTool.Smart)
+        {
+            DependencyObject? parent = this;
+            while (parent is not null && parent is not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
+            _smartCandidate = parent as ScrollViewer;
+            _smartHorizontal = _smartCandidate?.HorizontalOffset ?? 0;
+            _smartVertical = _smartCandidate?.VerticalOffset ?? 0;
+        }
         page.ClearTextSelection();
         PageInteractionLayer.CapturePointer(e.Pointer);
         e.Handled = true;
@@ -186,13 +197,11 @@ public sealed partial class PdfPagePresenter : UserControl
 
             if (index is null)
             {
-                if (page.ActiveTool == PdfTool.Smart && _isSelecting)
+                if (page.ActiveTool == PdfTool.Smart && _smartCandidate is { } scroll)
                 {
-                    DependencyObject? parent = this;
-                    while (parent is not null && parent is not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
-                    _smartScroll = parent as ScrollViewer;
-                    _smartHorizontal = _smartScroll?.HorizontalOffset ?? 0;
-                    _smartVertical = _smartScroll?.VerticalOffset ?? 0;
+                    scroll.ChangeView(_smartHorizontal - _smartPendingPoint.X + _smartStart.X,
+                        _smartVertical - _smartPendingPoint.Y + _smartStart.Y, null, true);
+                    if (_isSelecting) _smartScroll = scroll;
                 }
                 return;
             }
@@ -239,6 +248,7 @@ public sealed partial class PdfPagePresenter : UserControl
         }
         else
         {
+            _smartPendingPoint = e.GetCurrentPoint(null).Position;
             _pendingSelectionPoint = new PdfPagePoint(point.Position.X, point.Position.Y);
             if (_selectionAnchorIndex is not null) QueueSelectionUpdate(_pendingSelectionPoint);
         }
@@ -260,6 +270,7 @@ public sealed partial class PdfPagePresenter : UserControl
 
         var point = e.GetCurrentPoint(PageInteractionLayer);
         QueueSelectionUpdate(new PdfPagePoint(point.Position.X, point.Position.Y));
+        _smartPendingPoint = e.GetCurrentPoint(null).Position;
         _isSelecting = false;
         _smartScroll = null;
         PageInteractionLayer.ReleasePointerCapture(e.Pointer);
@@ -408,6 +419,7 @@ public sealed partial class PdfPagePresenter : UserControl
     {
         _selectionFlyout?.Hide();
         _smartScroll = null;
+        _smartCandidate = null;
         _selectionCancellation?.Cancel();
         _selectionCancellation?.Dispose();
         _selectionCancellation = null;

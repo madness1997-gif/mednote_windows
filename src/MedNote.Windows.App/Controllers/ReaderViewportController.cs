@@ -417,15 +417,23 @@ public sealed class ReaderViewportController : IDisposable
         e.Handled = true;
     }
 
-    private void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    public async Task StepZoomAsync(int direction)
+    {
+        if (!_viewModel.HasDocument || _disposed) return;
+        if (!_restoringPosition) CaptureCurrentPosition();
+        _viewModel.StepZoom(direction);
+        await RestoreSavedPositionAsync();
+    }
+
+    private async void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
         if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(global::Windows.System.VirtualKey.Control)
             & global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0 || !_viewModel.HasDocument) return;
         e.Handled = true;
         var delta = e.GetCurrentPoint(_surface).Properties.MouseWheelDelta;
         if (delta == 0) return;
-        CaptureCurrentPosition();
-        _viewModel.StepZoom(Math.Sign(delta));
+        try { await StepZoomAsync(Math.Sign(delta)); }
+        catch (ObjectDisposedException) { /* Window closed during layout restoration. */ }
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
