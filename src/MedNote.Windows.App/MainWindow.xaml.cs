@@ -30,7 +30,6 @@ public sealed partial class MainWindow : Window
     private readonly string? _startupDocumentPath;
     private ReaderWindowStateController? _state;
     private ReaderSidebarController? _sidebar;
-    private ReaderSearchDebouncer? _search;
     private ReaderAnnotationController? _annotations;
     private WorkspaceLayoutController? _workspace;
     private Task _workspacePreferenceSave = Task.CompletedTask;
@@ -71,6 +70,7 @@ public sealed partial class MainWindow : Window
         NoteWorkspacePane.OperationFailed += OnNoteOperationFailed;
         NoteWorkspacePane.SourceRequested += OnNoteSourceRequested;
         ViewModel.CropCreated += OnReaderCropCreated;
+        ViewModel.TextExcerptRequested += OnReaderTextExcerptRequested;
 
         _viewport = new ReaderViewportController(
             ViewModel,
@@ -83,15 +83,15 @@ public sealed partial class MainWindow : Window
             _viewport,
             EmptyState,
             ContinuousPagesList,
+            SidebarPagesList,
             SinglePageScrollViewer,
             SingleModeButton,
             ContinuousModeButton,
             FitPageButton,
             FitWidthButton,
-            PanToolButton,
-            SelectToolButton,
             PageNumberBox,
-            BookmarkIcon,
+            PreviousPageButton,
+            NextPageButton,
             BookmarkButton,
             BusyOverlay);
         _sidebar = new ReaderSidebarController(
@@ -104,12 +104,18 @@ public sealed partial class MainWindow : Window
             OutlineTabButton,
             PagesTabButton,
             SearchTabButton,
-            BookmarksTabButton);
-        _search = new ReaderSearchDebouncer(ViewModel, DispatcherQueue);
+            BookmarksTabButton,
+            ShowReaderRailButton,
+            AnnotationsPanel,
+            AnnotationsTabButton);
+        ViewModel.PropertyChanged += OnAnnotationListStateChanged;
         _annotations = new ReaderAnnotationController(
             ViewModel,
             new Dictionary<PdfTool, Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>
             {
+                [PdfTool.Pan] = PanToolButton,
+                [PdfTool.Smart] = SmartToolButton,
+                [PdfTool.Select] = SelectToolButton,
                 [PdfTool.Pen] = PenToolButton,
                 [PdfTool.Eraser] = EraserToolButton,
                 [PdfTool.Highlight] = HighlightToolButton,
@@ -233,7 +239,6 @@ public sealed partial class MainWindow : Window
                 if (SearchTextBox.Text.Length > 0)
                 {
                     SearchTextBox.Text = string.Empty;
-                    _search?.Reset();
                 }
 
                 if (RenderProbe.StartupRotation is { } startupRotation)
@@ -347,9 +352,10 @@ public sealed partial class MainWindow : Window
     private async Task DisposeLocalForShutdownAsync(CancellationToken cancellationToken)
     {
         ViewModel.CropCreated -= OnReaderCropCreated;
+        ViewModel.TextExcerptRequested -= OnReaderTextExcerptRequested;
+        ViewModel.PropertyChanged -= OnAnnotationListStateChanged;
         NoteWorkspacePane.SourceRequested -= OnNoteSourceRequested;
         NoteWorkspacePane.OperationFailed -= OnNoteOperationFailed;
-        _search?.Dispose();
         _annotations?.Dispose();
         _state?.Dispose();
         if (_workspace is not null)

@@ -32,7 +32,7 @@ public sealed partial class ReaderViewModel : ObservableObject, IAsyncDisposable
     private int _rotation;
     private PdfFitMode _fitMode = PdfFitMode.Page;
     private PdfViewMode _viewMode = PdfViewMode.Single;
-    private PdfTool _activeTool = PdfTool.Pan;
+    private PdfTool _activeTool = PdfTool.Smart;
     private double _viewportWidth = 1_000d;
     private double _viewportHeight = 760d;
     private double _rasterizationScale = 1d;

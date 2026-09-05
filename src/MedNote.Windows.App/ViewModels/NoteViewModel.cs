@@ -231,23 +231,26 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
         StatusText = "Đã lưu";
     }
 
-    public async Task SavePdfCropAsync(
+    public Task SavePdfCropAsync(
         string rtf,
         string documentId,
         PdfCropResult crop,
         CancellationToken cancellationToken = default)
+        => SavePdfSourceAsync(rtf, documentId, crop.Page, crop.Rect, cancellationToken);
+
+    public async Task SavePdfSourceAsync(string rtf, string documentId, int page,
+        PdfAnnotationRect rect, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
-        ArgumentNullException.ThrowIfNull(crop);
         if (!IsReady || string.IsNullOrEmpty(Active.ActiveSheetId))
         {
-            throw new InvalidOperationException("Note chưa sẵn sàng nhận crop PDF.");
+            throw new InvalidOperationException("Note chưa sẵn sàng nhận nội dung PDF.");
         }
 
         var content = new RtfSheetContent { Rtf = rtf };
         NoteLibraryValidator.AssertSheetContentValid(Active.ActiveSheetId, content);
-        var pair = PdfContentLinks.Create(documentId, Active.ActiveSheetId, crop.Page, crop.Rect);
-        StatusText = "Đang lưu crop và nguồn PDF…";
+        var pair = PdfContentLinks.Create(documentId, Active.ActiveSheetId, page, rect);
+        StatusText = "Đang lưu nội dung và nguồn PDF…";
         try
         {
             var documents = await _repository.SaveLinkedSheetContentAsync(
@@ -258,11 +261,11 @@ public sealed class NoteViewModel(INoteRepository repository) : ObservableObject
                 cancellationToken);
             ActiveRtf = rtf;
             ApplySources(documents);
-            StatusText = $"Đã chèn crop từ trang {crop.Page}";
+            StatusText = $"Đã chèn nội dung từ trang {page}";
         }
         catch
         {
-            StatusText = "Chưa lưu được crop PDF";
+            StatusText = "Chưa lưu được nội dung PDF";
             throw;
         }
     }

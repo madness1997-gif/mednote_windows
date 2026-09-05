@@ -108,6 +108,21 @@ public sealed partial class NotePane : UserControl
         }
     }
 
+    public async Task InsertPdfTextAsync(PdfTextExcerpt excerpt,
+        Func<CancellationToken, ValueTask> prepareSource, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _navigationGate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_editor is null) throw new InvalidOperationException("Note chưa sẵn sàng.");
+            await prepareSource(cancellationToken);
+            await _editor.InsertPdfTextAsync(excerpt, cancellationToken);
+        }
+        finally { _navigationGate.Release(); }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

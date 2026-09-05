@@ -10,6 +10,27 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _sourceFocusCancellation;
     private PdfPageViewModel? _sourceFocusPage;
 
+    private void OnReaderTextExcerptRequested(PdfTextExcerpt excerpt) => QueueNoteIntegration(async () =>
+    {
+        if (_closing) return;
+        try
+        {
+            await NoteWorkspacePane.InsertPdfTextAsync(excerpt, async cancellationToken =>
+            {
+                if (ViewModel.DocumentId != excerpt.DocumentId)
+                    throw new InvalidOperationException("PDF đã thay đổi; hãy chọn lại đoạn chữ.");
+                await ViewModel.PersistNowAsync(cancellationToken);
+            });
+            if (_workspace?.Mode == WorkspaceMode.Reader)
+                await ChangeWorkspaceModeAsync(WorkspaceMode.Split, focusTarget: false);
+            NoteWorkspacePane.FocusEditor();
+        }
+        catch (Exception exception)
+        {
+            if (!_closing) await ShowErrorAsync("Không chèn được chữ vào Note", exception.Message);
+        }
+    });
+
     private void OnReaderCropCreated(PdfCropResult crop) =>
         QueueNoteIntegration(() => HandleReaderCropCreatedAsync(crop));
 

@@ -37,44 +37,81 @@ public sealed partial class MainWindow
 
     private void OnZoomInClicked(object sender, RoutedEventArgs e) => ViewModel.StepZoom(1);
 
-    private void OnFitPageChecked(object sender, RoutedEventArgs e)
+    private bool _changingReaderDisplay;
+
+    private void OnReaderViewOpening(object sender, object e)
     {
-        if (!IsApplyingControls)
+        _state?.RefreshDisplayOptions();
+        ReaderOnlyViewButton.Content = _workspace?.Mode == WorkspaceMode.Reader
+            ? "Trở lại cả hai" : "Chỉ Reader";
+    }
+
+    private async void OnFitPageChecked(object sender, RoutedEventArgs e) =>
+        await ApplyReaderDisplayChangeAsync(() =>
         {
             ViewModel.SetFitMode(PdfFitMode.Page);
-        }
-    }
+            ViewModel.SetZoom(1d);
+        });
 
-    private void OnFitWidthChecked(object sender, RoutedEventArgs e)
-    {
-        if (!IsApplyingControls)
+    private async void OnFitWidthChecked(object sender, RoutedEventArgs e) =>
+        await ApplyReaderDisplayChangeAsync(() =>
         {
             ViewModel.SetFitMode(PdfFitMode.Width);
-        }
+            ViewModel.SetZoom(1d);
+        });
+
+    private async void OnSingleModeChecked(object sender, RoutedEventArgs e) =>
+        await ApplyReaderDisplayChangeAsync(() =>
+        {
+            ViewModel.SetViewMode(PdfViewMode.Single);
+            ViewModel.SetFitMode(PdfFitMode.Page);
+            ViewModel.SetZoom(1d);
+        });
+
+    private async void OnContinuousModeChecked(object sender, RoutedEventArgs e) =>
+        await ApplyReaderDisplayChangeAsync(() =>
+        {
+            ViewModel.SetViewMode(PdfViewMode.Continuous);
+            ViewModel.SetFitMode(PdfFitMode.Width);
+            ViewModel.SetZoom(1d);
+        });
+
+    private async void OnRotateReaderClicked(object sender, RoutedEventArgs e) =>
+        await ApplyReaderDisplayChangeAsync(() => ViewModel.SetRotation(ViewModel.Rotation + 90));
+
+    private async void OnToggleReaderWorkspaceClicked(object sender, RoutedEventArgs e)
+    {
+        ReaderViewFlyout.Hide();
+        await ChangeWorkspaceModeAsync(
+            _workspace?.Mode == WorkspaceMode.Reader ? WorkspaceMode.Split : WorkspaceMode.Reader,
+            focusTarget: true);
     }
 
-    private async void OnSingleModeChecked(object sender, RoutedEventArgs e)
+    private async Task ApplyReaderDisplayChangeAsync(Action change)
     {
-        if (IsApplyingControls)
+        if (IsApplyingControls || _changingReaderDisplay || !ViewModel.HasDocument)
         {
+            _state?.RefreshDisplayOptions();
             return;
         }
 
-        _viewport.CaptureCurrentPosition();
-        ViewModel.SetViewMode(PdfViewMode.Single);
-        await _viewport.RestoreSavedPositionAsync();
-    }
-
-    private async void OnContinuousModeChecked(object sender, RoutedEventArgs e)
-    {
-        if (IsApplyingControls)
+        _changingReaderDisplay = true;
+        ReaderViewFlyout.Hide();
+        try
         {
-            return;
+            _viewport.CaptureCurrentPosition();
+            change();
+            _state?.RefreshDisplayOptions();
+            await _viewport.RestoreSavedPositionAsync();
         }
-
-        _viewport.CaptureCurrentPosition();
-        ViewModel.SetViewMode(PdfViewMode.Continuous);
-        await _viewport.RestoreSavedPositionAsync();
+        catch (Exception exception)
+        {
+            await ShowErrorAsync("Không đổi được hiển thị PDF", exception.Message);
+        }
+        finally
+        {
+            _changingReaderDisplay = false;
+        }
     }
 
     private void OnPanToolClicked(object sender, RoutedEventArgs e)
@@ -82,6 +119,7 @@ public sealed partial class MainWindow
         if (!IsApplyingControls)
         {
             ViewModel.SetActiveTool(PdfTool.Pan);
+            _annotations?.Apply();
         }
     }
 
@@ -90,6 +128,7 @@ public sealed partial class MainWindow
         if (!IsApplyingControls)
         {
             ViewModel.SetActiveTool(PdfTool.Select);
+            _annotations?.Apply();
         }
     }
 
@@ -133,12 +172,16 @@ public sealed partial class MainWindow
         }
     }
 
-    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    private async void OnSearchSubmitClicked(object sender, RoutedEventArgs e)
     {
-        if (!_initializingControls)
-        {
-            _search?.Queue(SearchTextBox.Text);
-        }
+        if (!_initializingControls) await ViewModel.SearchAsync(SearchTextBox.Text);
+    }
+
+    private async void OnSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter) return;
+        e.Handled = true;
+        await ViewModel.SearchAsync(SearchTextBox.Text);
     }
 
     private async void OnReaderDrop(object sender, DragEventArgs e)
@@ -181,9 +224,25 @@ public sealed partial class MainWindow
             return;
         }
 
+        if (controlDown && e.Key == VirtualKey.F && !NoteWorkspacePane.ContainsFocus())
+        {
+            _sidebar?.SelectSearch();
+            _sidebar?.Show();
+            SearchTextBox.Focus(FocusState.Programmatic);
+            SearchTextBox.SelectAll();
+            e.Handled = true;
+            return;
+        }
+
         if (FocusManager.GetFocusedElement(Root.XamlRoot) is TextBox or RichEditBox
             || NoteWorkspacePane.ContainsFocus())
         {
+            return;
+        }
+
+        if (e.Key == VirtualKey.Space)
+        {
+            e.Handled = true;
             return;
         }
 

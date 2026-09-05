@@ -4,6 +4,10 @@ namespace MedNote.Windows.App;
 
 public sealed partial class MainWindow
 {
+    private void OnRemoveBookmarkClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.Controls.Button { DataContext: int page }) ViewModel.RemoveBookmark(page);
+    }
     private void OnOutlineTabChecked(object sender, RoutedEventArgs e)
     {
         if (!_initializingControls)

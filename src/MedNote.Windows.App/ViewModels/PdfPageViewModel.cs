@@ -326,13 +326,15 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
             .ToArray();
     }
 
-    internal bool IsTextSelectionEnabled => _owner.ActiveTool is PdfTool.Select
+    internal bool IsTextSelectionEnabled => _owner.ActiveTool is PdfTool.Smart or PdfTool.Select
         or PdfTool.Highlight
         or PdfTool.Underline
         or PdfTool.Strikeout
         or PdfTool.Squiggly;
 
     internal PdfTool ActiveTool => _owner.ActiveTool;
+
+    internal void SendSelectionToNote(string? text = null) => _owner.SendSelectionToNote(this, text);
 
     internal string InkColor => _owner.InkColor;
 

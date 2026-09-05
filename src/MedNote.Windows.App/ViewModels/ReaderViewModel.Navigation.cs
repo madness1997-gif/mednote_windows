@@ -83,7 +83,8 @@ public sealed partial class ReaderViewModel
         }
 
         ActiveTool = tool;
-        if (tool is not PdfTool.Select
+        if (tool is not PdfTool.Smart
+            and not PdfTool.Select
             and not PdfTool.Highlight
             and not PdfTool.Underline
             and not PdfTool.Strikeout
@@ -112,6 +113,15 @@ public sealed partial class ReaderViewModel
         Bookmarks = ordered;
         QueuePersist();
         return added;
+    }
+
+    public void RemoveBookmark(int page)
+    {
+        if (!_reader.Bookmarks.Contains(page)) return;
+        var remaining = _reader.Bookmarks.Where(value => value != page).ToList();
+        _reader = _reader with { Bookmarks = remaining };
+        Bookmarks = remaining;
+        QueuePersist();
     }
 
     public void SetViewport(double width, double height, double rasterizationScale)

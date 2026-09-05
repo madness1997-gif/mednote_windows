@@ -1,0 +1,20 @@
+<UserControl
+    x:Class="MedNote.Windows.App.Controls.ReaderToolContent"
+    x:Name="ContentRoot"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="False" IsHitTestVisible="False">
+    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+        <Viewbox Width="18" Height="18">
+            <Canvas Width="24" Height="24">
+                <Path Data="{Binding IconData, ElementName=ContentRoot}"
+                      Stroke="{Binding Foreground, ElementName=ContentRoot}"
+                      StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round" />
+            </Canvas>
+        </Viewbox>
+        <TextBlock x:Name="LabelText" Text="{Binding Label, ElementName=ContentRoot}"
+                   VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
+                   Visibility="Collapsed" />
+    </StackPanel>
+</UserControl>

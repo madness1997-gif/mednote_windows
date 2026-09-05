@@ -5,6 +5,26 @@ namespace MedNote.Windows.App.ViewModels;
 
 public sealed partial class ReaderViewModel
 {
+    public event Action<PdfTextExcerpt>? TextExcerptRequested;
+
+    internal void SendSelectionToNote(PdfPageViewModel page, string? text)
+    {
+        if (DocumentId is not { } id || page.Selection is not { } selection
+            || !ReferenceEquals(_selectionPage, page) || selection.Bounds.Count == 0)
+        {
+            return;
+        }
+
+        var bounds = selection.Bounds.Select(page.PageRectToAnnotation).ToArray();
+        var rect = new PdfAnnotationRect(bounds.Min(b => b.Left), bounds.Min(b => b.Bottom),
+            bounds.Max(b => b.Right), bounds.Max(b => b.Top));
+        var content = text ?? selection.Text;
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            TextExcerptRequested?.Invoke(new PdfTextExcerpt(id, DocumentName, page.Number, rect, content));
+        }
+    }
+
     public Task SearchAsync(string query) => _search.SearchAsync(query);
 
     public void ClearTextSelection()

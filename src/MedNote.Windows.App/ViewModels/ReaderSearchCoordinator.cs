@@ -176,9 +176,11 @@ public sealed class ReaderSearchCoordinator : ObservableObject, IAsyncDisposable
                 Results.Add(match);
             }
 
-            if (generation == _generation && Results.Count == 0)
+            if (generation == _generation)
             {
-                Status = $"Đã lập chỉ mục {_pageCount:N0} trang • không có kết quả";
+                Status = Results.Count == 0 ? $"Đã tìm trong {_pageCount:N0} trang • không có kết quả"
+                    : $"{Results.Count:N0} kết quả trên {Results.Select(item => item.PageIndex).Distinct().Count():N0} trang"
+                        + (Results.Count >= 500 ? " • tối đa 500 kết quả" : string.Empty);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -29,6 +29,11 @@ public sealed partial class PdfPagePresenter : UserControl
     private bool _selectionUpdateRunning;
     private bool _isSelecting;
     private bool _selectionMarkupCommitted;
+    private ReaderSelectionFlyout? _selectionFlyout;
+    private ScrollViewer? _smartScroll;
+    private Windows.Foundation.Point _smartStart;
+    private double _smartHorizontal;
+    private double _smartVertical;
 
     public PdfPagePresenter()
     {
@@ -91,6 +96,7 @@ public sealed partial class PdfPagePresenter : UserControl
             or nameof(PdfPageViewModel.DisplayHeight)
             or nameof(PdfPageViewModel.Rotation))
         {
+            _selectionFlyout?.Hide();
             DrawAnnotations();
             DrawSelection();
             DrawSourceFocus();
@@ -98,6 +104,7 @@ public sealed partial class PdfPagePresenter : UserControl
         }
         else if (e.PropertyName == nameof(PdfPageViewModel.Selection))
         {
+            _selectionFlyout?.Hide();
             DrawSelection();
         }
         else if (e.PropertyName == nameof(PdfPageViewModel.Annotations))
@@ -145,6 +152,9 @@ public sealed partial class PdfPagePresenter : UserControl
             return;
         }
 
+        if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Space)
+            & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0) return;
+
         if (!page.IsTextSelectionEnabled)
         {
             BeginAnnotationGesture(page, e, point);
@@ -156,6 +166,8 @@ public sealed partial class PdfPagePresenter : UserControl
         var generation = ++_selectionGeneration;
         _isSelecting = true;
         _selectionMarkupCommitted = false;
+        _pendingSelectionPoint = new PdfPagePoint(point.Position.X, point.Position.Y);
+        _smartStart = e.GetCurrentPoint(null).Position;
         page.ClearTextSelection();
         PageInteractionLayer.CapturePointer(e.Pointer);
         e.Handled = true;
@@ -165,21 +177,36 @@ public sealed partial class PdfPagePresenter : UserControl
             var index = await page.GetTextIndexAtDisplayPointAsync(
                 new PdfPagePoint(point.Position.X, point.Position.Y),
                 cancellationToken: _selectionCancellation.Token);
-            if (generation != _selectionGeneration || !ReferenceEquals(page, _boundPage) || index is null)
+            if (generation != _selectionGeneration || !ReferenceEquals(page, _boundPage))
             {
+                return;
+            }
+
+            if (index is null)
+            {
+                if (page.ActiveTool == PdfTool.Smart && _isSelecting)
+                {
+                    DependencyObject? parent = this;
+                    while (parent is not null && parent is not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
+                    _smartScroll = parent as ScrollViewer;
+                    _smartHorizontal = _smartScroll?.HorizontalOffset ?? 0;
+                    _smartVertical = _smartScroll?.VerticalOffset ?? 0;
+                }
                 return;
             }
 
             _selectionAnchorIndex = index;
             await page.SelectTextBetweenAsync(index.Value, index.Value, _selectionCancellation.Token);
-            if (!_isSelecting)
-            {
-                CommitAutomaticSelectionMarkup(page);
-            }
+            QueueSelectionUpdate(_pendingSelectionPoint);
         }
         catch (OperationCanceledException)
         {
             // A recycled page or newer pointer gesture superseded this one.
+        }
+        catch (Exception exception)
+        {
+            page.ReportInteractionError(exception.Message);
+            CancelSelectionInteraction();
         }
     }
 
@@ -191,7 +218,7 @@ public sealed partial class PdfPagePresenter : UserControl
             return;
         }
 
-        if (!_isSelecting || _selectionAnchorIndex is null)
+        if (!_isSelecting)
         {
             return;
         }
@@ -202,7 +229,17 @@ public sealed partial class PdfPagePresenter : UserControl
             return;
         }
 
-        QueueSelectionUpdate(new PdfPagePoint(point.Position.X, point.Position.Y));
+        if (_smartScroll is { } scroll)
+        {
+            var current = e.GetCurrentPoint(null).Position;
+            scroll.ChangeView(_smartHorizontal - current.X + _smartStart.X,
+                _smartVertical - current.Y + _smartStart.Y, null, true);
+        }
+        else
+        {
+            _pendingSelectionPoint = new PdfPagePoint(point.Position.X, point.Position.Y);
+            if (_selectionAnchorIndex is not null) QueueSelectionUpdate(_pendingSelectionPoint);
+        }
         e.Handled = true;
     }
 
@@ -222,6 +259,7 @@ public sealed partial class PdfPagePresenter : UserControl
         var point = e.GetCurrentPoint(PageInteractionLayer);
         QueueSelectionUpdate(new PdfPagePoint(point.Position.X, point.Position.Y));
         _isSelecting = false;
+        _smartScroll = null;
         PageInteractionLayer.ReleasePointerCapture(e.Pointer);
         e.Handled = true;
     }
@@ -229,6 +267,7 @@ public sealed partial class PdfPagePresenter : UserControl
     private void OnPointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
         _isSelecting = false;
+        _smartScroll = null;
         CancelAnnotationGesture();
     }
 
@@ -281,7 +320,7 @@ public sealed partial class PdfPagePresenter : UserControl
             {
                 _ = RunSelectionUpdateLoopAsync();
             }
-            else if (!_isSelecting && _boundPage is { } page)
+            else if (generation == _selectionGeneration && !_isSelecting && _boundPage is { } page)
             {
                 CommitAutomaticSelectionMarkup(page);
             }
@@ -294,6 +333,20 @@ public sealed partial class PdfPagePresenter : UserControl
         {
             _selectionMarkupCommitted = true;
         }
+        else if (!_selectionMarkupCommitted && page.ActiveTool is PdfTool.Smart or PdfTool.Select
+            && page.Selection is { Length: > 0 })
+        {
+            _selectionMarkupCommitted = true;
+            ShowSelectionFlyout(page);
+        }
+    }
+
+    private void ShowSelectionFlyout(PdfPageViewModel page, bool translate = false)
+    {
+        _selectionFlyout?.Hide();
+        _selectionFlyout = new ReaderSelectionFlyout();
+        _selectionFlyout.Show(PageInteractionLayer, page,
+            new Windows.Foundation.Point(_pendingSelectionPoint.X, _pendingSelectionPoint.Y), translate);
     }
 
     private void DrawSelection()
@@ -334,23 +387,15 @@ public sealed partial class PdfPagePresenter : UserControl
         Clipboard.Flush();
     }
 
-    private async void OnDictionarySelectionClicked(object sender, RoutedEventArgs e)
+    private void OnDictionarySelectionClicked(object sender, RoutedEventArgs e)
     {
-        var text = _boundPage?.Selection?.Text.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return;
-        }
-
-        const int maximumLookupLength = 512;
-        text = text[..Math.Min(text.Length, maximumLookupLength)];
-        var uri = new Uri(
-            $"https://translate.google.com/?sl=en&tl=vi&text={Uri.EscapeDataString(text)}&op=translate");
-        await Launcher.LaunchUriAsync(uri);
+        if (_boundPage is { } page) ShowSelectionFlyout(page, translate: true);
     }
 
     private void CancelSelectionInteraction()
     {
+        _selectionFlyout?.Hide();
+        _smartScroll = null;
         _selectionCancellation?.Cancel();
         _selectionCancellation?.Dispose();
         _selectionCancellation = null;

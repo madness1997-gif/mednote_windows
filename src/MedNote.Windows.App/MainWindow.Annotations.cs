@@ -9,6 +9,7 @@ namespace MedNote.Windows.App;
 
 public sealed partial class MainWindow
 {
+    private void OnSmartToolClicked(object sender, RoutedEventArgs e) => SelectAnnotationTool(PdfTool.Smart);
     private void OnPenToolClicked(object sender, RoutedEventArgs e) => SelectAnnotationTool(PdfTool.Pen);
 
     private void OnEraserToolClicked(object sender, RoutedEventArgs e) => SelectAnnotationTool(PdfTool.Eraser);
@@ -96,6 +97,7 @@ public sealed partial class MainWindow
         if (!IsApplyingControls)
         {
             ViewModel.SetActiveTool(tool);
+            _annotations?.Apply();
         }
     }
 }

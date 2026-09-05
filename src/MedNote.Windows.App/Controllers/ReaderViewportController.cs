@@ -71,6 +71,7 @@ public sealed class ReaderViewportController : IDisposable
             _xamlRoot.Changed += OnXamlRootChanged;
         }
         _surface.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed), true);
+        _surface.AddHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnPointerWheelChanged), true);
         _surface.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved), true);
         _surface.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased), true);
         _surface.AddHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(OnPointerReleased), true);
@@ -264,6 +265,7 @@ public sealed class ReaderViewportController : IDisposable
             _xamlRoot = null;
         }
         _surface.RemoveHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPointerPressed));
+        _surface.RemoveHandler(UIElement.PointerWheelChangedEvent, new PointerEventHandler(OnPointerWheelChanged));
         _surface.RemoveHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnPointerMoved));
         _surface.RemoveHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnPointerReleased));
         _surface.RemoveHandler(UIElement.PointerCanceledEvent, new PointerEventHandler(OnPointerReleased));
@@ -388,7 +390,11 @@ public sealed class ReaderViewportController : IDisposable
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (_viewModel.ActiveTool != PdfTool.Pan || !e.GetCurrentPoint(_surface).Properties.IsLeftButtonPressed)
+        var space = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Space)
+            & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+        if ((!space && _viewModel.ActiveTool != PdfTool.Pan
+            && !(_viewModel.ActiveTool == PdfTool.Smart && !e.Handled))
+            || !e.GetCurrentPoint(_surface).Properties.IsLeftButtonPressed)
         {
             return;
         }
@@ -409,6 +415,17 @@ public sealed class ReaderViewportController : IDisposable
         _panHorizontalOffset = scrollViewer.HorizontalOffset;
         _panVerticalOffset = scrollViewer.VerticalOffset;
         e.Handled = true;
+    }
+
+    private void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    {
+        if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            & Windows.UI.Core.CoreVirtualKeyStates.Down) == 0 || !_viewModel.HasDocument) return;
+        e.Handled = true;
+        var delta = e.GetCurrentPoint(_surface).Properties.MouseWheelDelta;
+        if (delta == 0) return;
+        CaptureCurrentPosition();
+        _viewModel.StepZoom(Math.Sign(delta));
     }
 
     private void OnPointerMoved(object sender, PointerRoutedEventArgs e)

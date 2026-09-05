@@ -55,6 +55,13 @@
                 <Setter Property="Foreground" Value="{ThemeResource ToolbarTextBrush}" />
                 <Setter Property="FontSize" Value="11" />
             </Style>
+            <Style x:Key="ReaderViewOptionStyle" TargetType="ToggleButton" BasedOn="{StaticResource ToolbarToggleStyle}">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Height" Value="36" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Padding" Value="10,0" />
+            </Style>
             <Style x:Key="RailTabStyle" TargetType="ToggleButton">
                 <Setter Property="Width" Value="31" />
                 <Setter Property="Height" Value="31" />

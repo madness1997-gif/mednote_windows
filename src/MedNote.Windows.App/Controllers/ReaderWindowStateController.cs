@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using MedNote.Core;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Automation;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -18,15 +20,15 @@ public sealed class ReaderWindowStateController : IDisposable
     private readonly ReaderViewportController _viewport;
     private readonly FrameworkElement _emptyState;
     private readonly ListView _continuousPages;
+    private readonly ListView _sidebarPages;
     private readonly ScrollViewer _singlePage;
     private readonly ToggleButton _singleModeButton;
     private readonly ToggleButton _continuousModeButton;
     private readonly ToggleButton _fitPageButton;
     private readonly ToggleButton _fitWidthButton;
-    private readonly ToggleButton _panToolButton;
-    private readonly ToggleButton _selectToolButton;
     private readonly NumberBox _pageNumberBox;
-    private readonly FontIcon _bookmarkIcon;
+    private readonly Button _previousPageButton;
+    private readonly Button _nextPageButton;
     private readonly Button _bookmarkButton;
     private readonly FrameworkElement _busyOverlay;
     private bool _disposed;
@@ -36,15 +38,15 @@ public sealed class ReaderWindowStateController : IDisposable
         ReaderViewportController viewport,
         FrameworkElement emptyState,
         ListView continuousPages,
+        ListView sidebarPages,
         ScrollViewer singlePage,
         ToggleButton singleModeButton,
         ToggleButton continuousModeButton,
         ToggleButton fitPageButton,
         ToggleButton fitWidthButton,
-        ToggleButton panToolButton,
-        ToggleButton selectToolButton,
         NumberBox pageNumberBox,
-        FontIcon bookmarkIcon,
+        Button previousPageButton,
+        Button nextPageButton,
         Button bookmarkButton,
         FrameworkElement busyOverlay)
     {
@@ -52,15 +54,15 @@ public sealed class ReaderWindowStateController : IDisposable
         _viewport = viewport;
         _emptyState = emptyState;
         _continuousPages = continuousPages;
+        _sidebarPages = sidebarPages;
         _singlePage = singlePage;
         _singleModeButton = singleModeButton;
         _continuousModeButton = continuousModeButton;
         _fitPageButton = fitPageButton;
         _fitWidthButton = fitWidthButton;
-        _panToolButton = panToolButton;
-        _selectToolButton = selectToolButton;
         _pageNumberBox = pageNumberBox;
-        _bookmarkIcon = bookmarkIcon;
+        _previousPageButton = previousPageButton;
+        _nextPageButton = nextPageButton;
         _bookmarkButton = bookmarkButton;
         _busyOverlay = busyOverlay;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -72,7 +74,6 @@ public sealed class ReaderWindowStateController : IDisposable
     {
         ApplyFitMode();
         ApplyViewMode();
-        ApplyActiveTool();
         UpdatePageControls();
         UpdateBookmarkButton();
         _busyOverlay.Visibility = _viewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
@@ -82,6 +83,11 @@ public sealed class ReaderWindowStateController : IDisposable
     {
         ApplyGuarded(() =>
         {
+            _sidebarPages.SelectedItem = _viewModel.HasDocument
+                && _viewModel.CurrentPage > 0 && _viewModel.CurrentPage <= _viewModel.Pages.Count
+                    ? _viewModel.Pages[_viewModel.CurrentPage - 1] : null;
+            _previousPageButton.IsEnabled = _viewModel.HasDocument && _viewModel.CurrentPage > 1;
+            _nextPageButton.IsEnabled = _viewModel.HasDocument && _viewModel.CurrentPage < _viewModel.PageCount;
             _pageNumberBox.Maximum = Math.Max(1, _viewModel.PageCount);
             _pageNumberBox.Value = _viewModel.PageCount > 0 ? _viewModel.CurrentPage : 1;
         });
@@ -90,7 +96,11 @@ public sealed class ReaderWindowStateController : IDisposable
     public void UpdateBookmarkButton()
     {
         var marked = _viewModel.Bookmarks.Contains(_viewModel.CurrentPage);
-        _bookmarkIcon.Glyph = marked ? "\uE735" : "\uE734";
+        _bookmarkButton.Background = (Brush)Microsoft.UI.Xaml.Application.Current.Resources[
+            marked ? "SelectedBrush" : "ControlSurfaceBrush"];
+        _bookmarkButton.Foreground = (Brush)Microsoft.UI.Xaml.Application.Current.Resources[
+            marked ? "MedNoteTealBrush" : "ToolbarTextBrush"];
+        AutomationProperties.SetName(_bookmarkButton, marked ? "Bỏ đánh dấu trang" : "Đánh dấu trang");
         ToolTipService.SetToolTip(
             _bookmarkButton,
             marked ? "Bỏ đánh dấu trang" : "Đánh dấu trang");
@@ -121,6 +131,7 @@ public sealed class ReaderWindowStateController : IDisposable
                 break;
             case nameof(ReaderViewModel.HasDocument):
                 ApplyViewMode();
+                UpdatePageControls();
                 break;
             case nameof(ReaderViewModel.CurrentPage):
             case nameof(ReaderViewModel.PageCount):
@@ -134,10 +145,17 @@ public sealed class ReaderWindowStateController : IDisposable
             case nameof(ReaderViewModel.ViewMode):
                 ApplyViewMode();
                 break;
-            case nameof(ReaderViewModel.ActiveTool):
-                ApplyActiveTool();
-                break;
         }
+    }
+
+    public void RefreshDisplayOptions()
+    {
+        ApplyFitMode();
+        ApplyGuarded(() =>
+        {
+            _singleModeButton.IsChecked = _viewModel.ViewMode == PdfViewMode.Single;
+            _continuousModeButton.IsChecked = _viewModel.ViewMode == PdfViewMode.Continuous;
+        });
     }
 
     private void ApplyFitMode() => ApplyGuarded(() =>
@@ -163,12 +181,6 @@ public sealed class ReaderWindowStateController : IDisposable
             _viewport.OnViewModeApplied();
         }
     }
-
-    private void ApplyActiveTool() => ApplyGuarded(() =>
-    {
-        _panToolButton.IsChecked = _viewModel.ActiveTool == PdfTool.Pan;
-        _selectToolButton.IsChecked = _viewModel.ActiveTool == PdfTool.Select;
-    });
 
     private void ApplyGuarded(Action action)
     {

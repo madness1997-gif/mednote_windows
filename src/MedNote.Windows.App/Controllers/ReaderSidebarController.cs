@@ -11,6 +11,9 @@ namespace MedNote.Windows.App.Controllers;
 public sealed class ReaderSidebarController
 {
     private const double SidebarWidth = 264d;
+    private const double ThumbnailWidth = 108d;
+    private readonly Button _showRailButton;
+    private double _selectedWidth = SidebarWidth;
     private readonly ColumnDefinition _sidebarColumn;
     private readonly FrameworkElement _sidebarPane;
     private readonly FrameworkElement _outlinePanel;
@@ -22,6 +25,8 @@ public sealed class ReaderSidebarController
     private readonly ToggleButton _searchButton;
     private readonly ToggleButton _bookmarksButton;
     private bool _applying;
+    private readonly FrameworkElement _annotationsPanel;
+    private readonly ToggleButton _annotationsButton;
 
     public ReaderSidebarController(
         ColumnDefinition sidebarColumn,
@@ -33,8 +38,14 @@ public sealed class ReaderSidebarController
         ToggleButton outlineButton,
         ToggleButton pagesButton,
         ToggleButton searchButton,
-        ToggleButton bookmarksButton)
+        ToggleButton bookmarksButton,
+        Button showRailButton,
+        FrameworkElement annotationsPanel,
+        ToggleButton annotationsButton)
     {
+        _annotationsPanel = annotationsPanel;
+        _annotationsButton = annotationsButton;
+        _showRailButton = showRailButton;
         _sidebarColumn = sidebarColumn;
         _sidebarPane = sidebarPane;
         _outlinePanel = outlinePanel;
@@ -49,13 +60,15 @@ public sealed class ReaderSidebarController
 
     public void Hide()
     {
+        _showRailButton.Visibility = Visibility.Visible;
         _sidebarPane.Visibility = Visibility.Collapsed;
         _sidebarColumn.Width = new GridLength(0);
     }
 
     public void Show()
     {
-        _sidebarColumn.Width = new GridLength(SidebarWidth);
+        _showRailButton.Visibility = Visibility.Collapsed;
+        _sidebarColumn.Width = new GridLength(_selectedWidth);
         _sidebarPane.Visibility = Visibility.Visible;
     }
 
@@ -66,6 +79,7 @@ public sealed class ReaderSidebarController
     public void SelectSearch() => Select(_searchPanel);
 
     public void SelectBookmarks() => Select(_bookmarksPanel);
+    public void SelectAnnotations() => Select(_annotationsPanel);
 
     private void Select(FrameworkElement selected)
     {
@@ -77,6 +91,12 @@ public sealed class ReaderSidebarController
         _applying = true;
         try
         {
+            _selectedWidth = ReferenceEquals(selected, _pagesPanel) ? ThumbnailWidth : SidebarWidth;
+            if (_sidebarPane.Visibility == Visibility.Visible)
+            {
+                _sidebarColumn.Width = new GridLength(_selectedWidth);
+            }
+
             _outlinePanel.Visibility = ReferenceEquals(selected, _outlinePanel) ? Visibility.Visible : Visibility.Collapsed;
             _pagesPanel.Visibility = ReferenceEquals(selected, _pagesPanel) ? Visibility.Visible : Visibility.Collapsed;
             _searchPanel.Visibility = ReferenceEquals(selected, _searchPanel) ? Visibility.Visible : Visibility.Collapsed;
@@ -85,6 +105,8 @@ public sealed class ReaderSidebarController
             _pagesButton.IsChecked = ReferenceEquals(selected, _pagesPanel);
             _searchButton.IsChecked = ReferenceEquals(selected, _searchPanel);
             _bookmarksButton.IsChecked = ReferenceEquals(selected, _bookmarksPanel);
+            _annotationsPanel.Visibility = ReferenceEquals(selected, _annotationsPanel) ? Visibility.Visible : Visibility.Collapsed;
+            _annotationsButton.IsChecked = ReferenceEquals(selected, _annotationsPanel);
         }
         finally
         {

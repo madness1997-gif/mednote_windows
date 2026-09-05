@@ -183,6 +183,36 @@ public sealed class NoteEditorController : IAsyncDisposable
         }
     }
 
+    public async Task InsertPdfTextAsync(PdfTextExcerpt excerpt, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _saveTimer.Stop();
+        await _saveGate.WaitAsync(cancellationToken);
+        _editor.Document.GetText(TextGetOptions.FormatRtf, out var previousRtf);
+        var start = _editor.Document.Selection.StartPosition;
+        var end = _editor.Document.Selection.EndPosition;
+        _loading = true;
+        try
+        {
+            _editor.Document.Selection.SetText(TextSetOptions.None,
+                $"{excerpt.Text}\r{excerpt.DocumentName} · trang {excerpt.Page}\r");
+            _editor.Document.GetText(TextGetOptions.FormatRtf, out var nextRtf);
+            await _viewModel.SavePdfSourceAsync(nextRtf, excerpt.DocumentId, excerpt.Page, excerpt.Rect, cancellationToken);
+            FocusEditor();
+        }
+        catch
+        {
+            _editor.Document.SetText(TextSetOptions.FormatRtf, previousRtf);
+            _editor.Document.Selection.SetRange(start, end);
+            throw;
+        }
+        finally
+        {
+            _loading = false;
+            _saveGate.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using MedNote.Core;
+using MedNote.Windows.App.Controls;
 using MedNote.Windows.App.ViewModels;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -39,7 +40,12 @@ public sealed class ReaderAnnotationController : IDisposable
     {
         foreach (var (tool, button) in _tools)
         {
-            button.IsChecked = _viewModel.ActiveTool == tool;
+            var active = _viewModel.ActiveTool == tool;
+            button.IsChecked = active;
+            if (button.Content is ReaderToolContent content)
+            {
+                content.IsActive = active;
+            }
             button.IsEnabled = _viewModel.HasDocument;
         }
 

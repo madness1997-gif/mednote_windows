@@ -29,6 +29,7 @@ public enum PdfTool
     Rectangle,
     Ellipse,
     Arrow,
+    Smart,
 }
 
 /// <summary>
