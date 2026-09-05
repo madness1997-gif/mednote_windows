@@ -127,6 +127,13 @@ jobs:
               }
 
               $probe = (Get-Content $renderProbe -Raw).Trim()
+              if (-not (Test-Path artifacts/reader-window.png)) {
+                try {
+                  & scripts/Save-ReaderWindowCapture.ps1 -ProcessId $process.Id -OutputPath artifacts/reader-window.png
+                } catch {
+                  Write-Warning "Native screenshot unavailable: $_"
+                }
+              }
               Write-Host "PDF render probe: $probe"
               if ($probe -notmatch '^surface=direct2d;page=(\d+);pages=(\d+);width=(\d+);height=(\d+);bytes=\d+;workingSet=(\d+);elapsedMs=(\d+);presentations=(\d+);inkSamples=(\d+);rotation=(\d+);corners=([RGBKW?]{4})$') {
                 throw "Invalid Direct2D render probe: $probe"
@@ -223,6 +230,13 @@ jobs:
           Remove-Item Env:MEDNOTE_RENDER_ROTATION -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_SIMULATE_SURFACE_LOSS -ErrorAction SilentlyContinue
           Remove-Item Env:MEDNOTE_PDF_PASSWORD -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Reader-native-visual-review
+          path: artifacts/reader-window.png
+          if-no-files-found: warn
+          retention-days: 14
       - name: Verify native artifact boundary
         shell: pwsh
         run: |

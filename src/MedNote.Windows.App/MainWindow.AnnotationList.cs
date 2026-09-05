@@ -76,7 +76,7 @@ public sealed partial class MainWindow
         }
     }
 
-    private static Windows.UI.Color ParseAnnotationColor(string value)
+    private static global::Windows.UI.Color ParseAnnotationColor(string value)
     {
         var normalized = PdfAnnotationColor.Normalize(value);
         return ColorHelper.FromArgb(255, Convert.ToByte(normalized.Substring(1, 2), 16),

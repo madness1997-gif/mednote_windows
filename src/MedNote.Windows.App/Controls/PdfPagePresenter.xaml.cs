@@ -31,9 +31,10 @@ public sealed partial class PdfPagePresenter : UserControl
     private bool _selectionMarkupCommitted;
     private ReaderSelectionFlyout? _selectionFlyout;
     private ScrollViewer? _smartScroll;
-    private Windows.Foundation.Point _smartStart;
+    private global::Windows.Foundation.Point _smartStart;
     private double _smartHorizontal;
     private double _smartVertical;
+    private PdfPagePoint _selectionStartPoint;
 
     public PdfPagePresenter()
     {
@@ -153,7 +154,7 @@ public sealed partial class PdfPagePresenter : UserControl
         }
 
         if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Space)
-            & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0) return;
+            & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0) return;
 
         if (!page.IsTextSelectionEnabled)
         {
@@ -167,6 +168,7 @@ public sealed partial class PdfPagePresenter : UserControl
         _isSelecting = true;
         _selectionMarkupCommitted = false;
         _pendingSelectionPoint = new PdfPagePoint(point.Position.X, point.Position.Y);
+        _selectionStartPoint = _pendingSelectionPoint;
         _smartStart = e.GetCurrentPoint(null).Position;
         page.ClearTextSelection();
         PageInteractionLayer.CapturePointer(e.Pointer);
@@ -313,6 +315,10 @@ public sealed partial class PdfPagePresenter : UserControl
         {
             // A newer selection gesture owns the overlay now.
         }
+        catch (Exception exception)
+        {
+            _boundPage?.ReportInteractionError(exception.Message);
+        }
         finally
         {
             _selectionUpdateRunning = false;
@@ -329,6 +335,12 @@ public sealed partial class PdfPagePresenter : UserControl
 
     private void CommitAutomaticSelectionMarkup(PdfPageViewModel page)
     {
+        if (Math.Abs(_pendingSelectionPoint.X - _selectionStartPoint.X) < 3
+            && Math.Abs(_pendingSelectionPoint.Y - _selectionStartPoint.Y) < 3)
+        {
+            page.ClearTextSelection();
+            return;
+        }
         if (!_selectionMarkupCommitted && page.CommitSelectionMarkupForActiveTool())
         {
             _selectionMarkupCommitted = true;
@@ -346,7 +358,7 @@ public sealed partial class PdfPagePresenter : UserControl
         _selectionFlyout?.Hide();
         _selectionFlyout = new ReaderSelectionFlyout();
         _selectionFlyout.Show(PageInteractionLayer, page,
-            new Windows.Foundation.Point(_pendingSelectionPoint.X, _pendingSelectionPoint.Y), translate);
+            new global::Windows.Foundation.Point(_pendingSelectionPoint.X, _pendingSelectionPoint.Y), translate);
     }
 
     private void DrawSelection()

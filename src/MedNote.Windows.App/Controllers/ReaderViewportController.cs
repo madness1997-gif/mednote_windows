@@ -390,8 +390,8 @@ public sealed class ReaderViewportController : IDisposable
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        var space = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Space)
-            & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+        var space = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(global::Windows.System.VirtualKey.Space)
+            & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
         if ((!space && _viewModel.ActiveTool != PdfTool.Pan
             && !(_viewModel.ActiveTool == PdfTool.Smart && !e.Handled))
             || !e.GetCurrentPoint(_surface).Properties.IsLeftButtonPressed)
@@ -419,8 +419,8 @@ public sealed class ReaderViewportController : IDisposable
 
     private void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
-            & Windows.UI.Core.CoreVirtualKeyStates.Down) == 0 || !_viewModel.HasDocument) return;
+        if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(global::Windows.System.VirtualKey.Control)
+            & global::Windows.UI.Core.CoreVirtualKeyStates.Down) == 0 || !_viewModel.HasDocument) return;
         e.Handled = true;
         var delta = e.GetCurrentPoint(_surface).Properties.MouseWheelDelta;
         if (delta == 0) return;

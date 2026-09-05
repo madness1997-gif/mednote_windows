@@ -298,6 +298,8 @@ public sealed class PdfPageViewModel : ObservableObject, IDisposable
         startIndex = Math.Clamp(startIndex, 0, textPage.Text.Length - 1);
         length = Math.Clamp(length, 1, textPage.Text.Length - startIndex);
         var bounds = await textProvider.GetTextBoundsAsync(PageIndex, startIndex, length, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_disposed) return null;
         var selection = new PdfTextSelection(
             PageIndex,
             startIndex,
